@@ -1,83 +1,131 @@
-{"timestamp": "2026-08-08T22:15:34.349702+00:00", "kind": "multimodal_ingest", "status": "complete", "failed_documents": []}
-{"timestamp": "2026-08-08T22:15:50.486767+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 15.964}
-{"timestamp": "2026-08-08T22:15:51.490202+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.003}
-{"timestamp": "2026-08-08T22:15:57.892923+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.402}
-{"timestamp": "2026-08-08T22:15:58.876969+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.984}
-{"timestamp": "2026-08-08T22:16:05.283413+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.406}
-{"timestamp": "2026-08-08T22:16:06.299257+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.016}
-{"timestamp": "2026-08-08T22:16:12.707204+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.408}
-{"timestamp": "2026-08-08T22:16:14.012959+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.306}
-{"timestamp": "2026-08-08T22:16:20.426736+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.414}
-{"timestamp": "2026-08-08T22:16:21.583625+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.157}
-{"timestamp": "2026-08-08T22:16:27.994232+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.41}
-{"timestamp": "2026-08-08T22:16:28.964713+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.97}
-{"timestamp": "2026-08-08T22:16:35.368343+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.403}
-{"timestamp": "2026-08-08T22:16:36.338619+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.97}
-{"timestamp": "2026-08-08T22:16:42.744785+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.406}
-{"timestamp": "2026-08-08T22:16:44.155683+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.411}
-{"timestamp": "2026-08-08T22:16:50.562972+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.407}
-{"timestamp": "2026-08-08T22:16:51.625998+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.063}
-{"timestamp": "2026-08-08T22:16:58.035392+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.409}
-{"timestamp": "2026-08-08T22:16:59.241485+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.206}
-{"timestamp": "2026-08-08T22:17:05.652387+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.411}
-{"timestamp": "2026-08-08T22:17:06.729381+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.077}
-{"timestamp": "2026-08-08T22:17:13.141381+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.412}
-{"timestamp": "2026-08-08T22:17:14.322352+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.181}
-{"timestamp": "2026-08-08T22:17:20.733713+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.411}
-{"timestamp": "2026-08-08T22:17:21.728800+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.995}
-{"timestamp": "2026-08-08T22:17:28.132401+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.403}
-{"timestamp": "2026-08-08T22:17:29.293790+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.161}
-{"timestamp": "2026-08-08T22:17:35.720985+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.427}
-{"timestamp": "2026-08-08T22:17:36.715096+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.994}
-{"timestamp": "2026-08-08T22:17:43.140321+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.425}
-{"timestamp": "2026-08-08T22:17:44.213641+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.073}
-{"timestamp": "2026-08-08T22:17:50.631309+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.418}
-{"timestamp": "2026-08-08T22:17:51.533093+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.902}
-{"timestamp": "2026-08-08T22:17:57.952340+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.419}
-{"timestamp": "2026-08-08T22:17:58.897787+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.945}
-{"timestamp": "2026-08-08T22:18:05.323448+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.425}
-{"timestamp": "2026-08-08T22:18:06.510753+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.187}
-{"timestamp": "2026-08-08T22:18:12.929242+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.418}
-{"timestamp": "2026-08-08T22:18:13.832065+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.903}
-{"timestamp": "2026-08-08T22:18:20.252720+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.42}
-{"timestamp": "2026-08-08T22:18:21.240892+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.988}
-{"timestamp": "2026-08-08T22:18:27.664180+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.423}
-{"timestamp": "2026-08-08T22:18:28.684215+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.02}
-{"timestamp": "2026-08-08T22:18:35.098734+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.414}
-{"timestamp": "2026-08-08T22:18:36.075885+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.977}
-{"timestamp": "2026-08-08T22:18:42.492891+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.417}
-{"timestamp": "2026-08-08T22:18:43.482721+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.99}
-{"timestamp": "2026-08-08T22:18:49.894537+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.412}
-{"timestamp": "2026-08-08T22:18:50.804233+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.91}
-{"timestamp": "2026-08-08T22:18:57.172958+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.369}
-{"timestamp": "2026-08-08T22:18:58.167474+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.994}
-{"timestamp": "2026-08-08T22:19:04.581295+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.414}
-{"timestamp": "2026-08-08T22:19:05.645788+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.064}
-{"timestamp": "2026-08-08T22:19:12.064885+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.419}
-{"timestamp": "2026-08-08T22:19:13.262809+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.198}
-{"timestamp": "2026-08-08T22:19:19.665591+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.403}
-{"timestamp": "2026-08-08T22:19:20.828369+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.163}
-{"timestamp": "2026-08-08T22:19:27.242316+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.414}
-{"timestamp": "2026-08-08T22:19:28.426028+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.184}
-{"timestamp": "2026-08-08T22:19:34.837829+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.412}
-{"timestamp": "2026-08-08T22:19:35.803022+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.965}
-{"timestamp": "2026-08-08T22:19:42.217041+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.414}
-{"timestamp": "2026-08-08T22:19:43.231216+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.014}
-{"timestamp": "2026-08-08T22:19:49.652656+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.421}
-{"timestamp": "2026-08-08T22:19:50.769780+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.117}
-{"timestamp": "2026-08-08T22:19:57.190446+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.421}
-{"timestamp": "2026-08-08T22:19:58.146646+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.956}
-{"timestamp": "2026-08-08T22:20:04.565704+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.419}
-{"timestamp": "2026-08-08T22:20:05.547822+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.982}
-{"timestamp": "2026-08-08T22:20:11.961443+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.413}
-{"timestamp": "2026-08-08T22:20:12.917660+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.956}
-{"timestamp": "2026-08-08T22:20:19.327259+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.409}
-{"timestamp": "2026-08-08T22:20:20.186367+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.859}
-{"timestamp": "2026-08-08T22:20:26.597355+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.411}
-{"timestamp": "2026-08-08T22:20:27.459606+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.862}
-{"timestamp": "2026-08-08T22:20:33.877683+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.418}
-{"timestamp": "2026-08-08T22:20:34.817397+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.94}
-{"timestamp": "2026-08-08T22:20:41.235016+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.417}
-{"timestamp": "2026-08-08T22:20:42.563024+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 1.328}
-{"timestamp": "2026-08-08T22:20:48.983631+00:00", "kind": "qwen_generation", "status": "success", "http_status": 200, "latency_seconds": 6.42}
-{"timestamp": "2026-08-08T22:20:49.956831+00:00", "kind": "rag_search", "status": "success", "http_status": 200, "latency_seconds": 0.973}
+{"timestamp":"2026-08-08T22:26:03+00:00","completed_at":"2026-08-08T22:26:31+00:00","kind":"multimodal_ingest","status":"complete","collection":"qwen_active_20260808_2","document":"functional_validation.pdf","failed_documents":[],"elements":{"text":5,"table":2,"image":4}}
+{"timestamp":"2026-08-08T22:26:58+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.452509}
+{"timestamp":"2026-08-08T22:26:58+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.428581}
+{"timestamp":"2026-08-08T22:27:02+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.447497}
+{"timestamp":"2026-08-08T22:27:02+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.041471}
+{"timestamp":"2026-08-08T22:27:07+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.447399}
+{"timestamp":"2026-08-08T22:27:08+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.833128}
+{"timestamp":"2026-08-08T22:27:10+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441493}
+{"timestamp":"2026-08-08T22:27:10+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.450668}
+{"timestamp":"2026-08-08T22:27:15+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.446176}
+{"timestamp":"2026-08-08T22:27:15+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.905753}
+{"timestamp":"2026-08-08T22:27:21+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441702}
+{"timestamp":"2026-08-08T22:27:21+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.806666}
+{"timestamp":"2026-08-08T22:27:24+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.451095}
+{"timestamp":"2026-08-08T22:27:25+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.528756}
+{"timestamp":"2026-08-08T22:27:26+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.449052}
+{"timestamp":"2026-08-08T22:27:27+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.872472}
+{"timestamp":"2026-08-08T22:27:30+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.443386}
+{"timestamp":"2026-08-08T22:27:30+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.709373}
+{"timestamp":"2026-08-08T22:27:32+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440793}
+{"timestamp":"2026-08-08T22:27:32+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.944199}
+{"timestamp":"2026-08-08T22:27:35+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440324}
+{"timestamp":"2026-08-08T22:27:36+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.931890}
+{"timestamp":"2026-08-08T22:27:38+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448778}
+{"timestamp":"2026-08-08T22:27:38+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.795483}
+{"timestamp":"2026-08-08T22:27:40+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.447895}
+{"timestamp":"2026-08-08T22:27:41+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.239693}
+{"timestamp":"2026-08-08T22:27:44+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441547}
+{"timestamp":"2026-08-08T22:27:44+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.251950}
+{"timestamp":"2026-08-08T22:27:46+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445900}
+{"timestamp":"2026-08-08T22:27:46+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.818347}
+{"timestamp":"2026-08-08T22:27:49+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.451132}
+{"timestamp":"2026-08-08T22:27:49+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.231143}
+{"timestamp":"2026-08-08T22:27:51+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.451098}
+{"timestamp":"2026-08-08T22:27:51+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.274025}
+{"timestamp":"2026-08-08T22:27:52+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441237}
+{"timestamp":"2026-08-08T22:27:53+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.387439}
+{"timestamp":"2026-08-08T22:27:57+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448285}
+{"timestamp":"2026-08-08T22:27:58+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.810253}
+{"timestamp":"2026-08-08T22:28:02+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.446282}
+{"timestamp":"2026-08-08T22:28:02+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.552593}
+{"timestamp":"2026-08-08T22:28:04+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445065}
+{"timestamp":"2026-08-08T22:28:04+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.533696}
+{"timestamp":"2026-08-08T22:28:09+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.449074}
+{"timestamp":"2026-08-08T22:28:09+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.813234}
+{"timestamp":"2026-08-08T22:28:12+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.444551}
+{"timestamp":"2026-08-08T22:28:13+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.249218}
+{"timestamp":"2026-08-08T22:28:16+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.447456}
+{"timestamp":"2026-08-08T22:28:16+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.229287}
+{"timestamp":"2026-08-08T22:28:18+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440631}
+{"timestamp":"2026-08-08T22:28:18+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.239450}
+{"timestamp":"2026-08-08T22:28:23+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.447957}
+{"timestamp":"2026-08-08T22:28:24+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.463027}
+{"timestamp":"2026-08-08T22:28:25+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440705}
+{"timestamp":"2026-08-08T22:28:26+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.779207}
+{"timestamp":"2026-08-08T22:28:31+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.451372}
+{"timestamp":"2026-08-08T22:28:31+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.408443}
+{"timestamp":"2026-08-08T22:28:35+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.443270}
+{"timestamp":"2026-08-08T22:28:36+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.664943}
+{"timestamp":"2026-08-08T22:28:38+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.450675}
+{"timestamp":"2026-08-08T22:28:38+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.194771}
+{"timestamp":"2026-08-08T22:28:39+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.437901}
+{"timestamp":"2026-08-08T22:28:40+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.467014}
+{"timestamp":"2026-08-08T22:28:41+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.437282}
+{"timestamp":"2026-08-08T22:28:42+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.819513}
+{"timestamp":"2026-08-08T22:28:44+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448358}
+{"timestamp":"2026-08-08T22:28:44+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.813933}
+{"timestamp":"2026-08-08T22:28:49+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445579}
+{"timestamp":"2026-08-08T22:28:49+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.793614}
+{"timestamp":"2026-08-08T22:28:54+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441957}
+{"timestamp":"2026-08-08T22:28:55+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.761325}
+{"timestamp":"2026-08-08T22:28:57+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.442686}
+{"timestamp":"2026-08-08T22:28:58+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.100696}
+{"timestamp":"2026-08-08T22:29:03+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.442311}
+{"timestamp":"2026-08-08T22:29:04+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.832742}
+{"timestamp":"2026-08-08T22:29:05+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.446723}
+{"timestamp":"2026-08-08T22:29:06+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.868453}
+{"timestamp":"2026-08-08T22:29:11+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448588}
+{"timestamp":"2026-08-08T22:29:11+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.533035}
+{"timestamp":"2026-08-08T22:29:16+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445964}
+{"timestamp":"2026-08-08T22:29:16+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.258518}
+{"timestamp":"2026-08-08T22:29:18+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.442620}
+{"timestamp":"2026-08-08T22:29:18+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.335608}
+{"timestamp":"2026-08-08T22:29:19+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445663}
+{"timestamp":"2026-08-08T22:29:20+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.351569}
+{"timestamp":"2026-08-08T22:29:25+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448649}
+{"timestamp":"2026-08-08T22:29:26+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.078377}
+{"timestamp":"2026-08-08T22:29:31+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.452998}
+{"timestamp":"2026-08-08T22:29:31+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.460090}
+{"timestamp":"2026-08-08T22:29:33+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.442808}
+{"timestamp":"2026-08-08T22:29:33+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.906042}
+{"timestamp":"2026-08-08T22:29:38+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440309}
+{"timestamp":"2026-08-08T22:29:39+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.956466}
+{"timestamp":"2026-08-08T22:29:44+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.440584}
+{"timestamp":"2026-08-08T22:29:44+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.388801}
+{"timestamp":"2026-08-08T22:29:46+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445557}
+{"timestamp":"2026-08-08T22:29:46+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.695560}
+{"timestamp":"2026-08-08T22:29:48+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448711}
+{"timestamp":"2026-08-08T22:29:48+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.714537}
+{"timestamp":"2026-08-08T22:29:53+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.441813}
+{"timestamp":"2026-08-08T22:29:53+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.470261}
+{"timestamp":"2026-08-08T22:29:55+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.442101}
+{"timestamp":"2026-08-08T22:29:55+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":2.945844}
+{"timestamp":"2026-08-08T22:29:58+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.443202}
+{"timestamp":"2026-08-08T22:29:59+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.068281}
+{"timestamp":"2026-08-08T22:30:04+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.443940}
+{"timestamp":"2026-08-08T22:30:04+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.768071}
+{"timestamp":"2026-08-08T22:30:08+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448052}
+{"timestamp":"2026-08-08T22:30:09+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.587036}
+{"timestamp":"2026-08-08T22:30:13+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.446137}
+{"timestamp":"2026-08-08T22:30:14+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":3.003493}
+{"timestamp":"2026-08-08T22:30:17+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.443320}
+{"timestamp":"2026-08-08T22:30:17+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.364196}
+{"timestamp":"2026-08-08T22:30:19+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.446515}
+{"timestamp":"2026-08-08T22:30:19+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.409702}
+{"timestamp":"2026-08-08T22:30:24+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.458524}
+{"timestamp":"2026-08-08T22:30:24+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.240370}
+{"timestamp":"2026-08-08T22:30:25+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.451389}
+{"timestamp":"2026-08-08T22:30:26+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":5.577091}
+{"timestamp":"2026-08-08T22:30:31+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.444041}
+{"timestamp":"2026-08-08T22:30:32+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.335550}
+{"timestamp":"2026-08-08T22:30:36+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.449038}
+{"timestamp":"2026-08-08T22:30:37+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.420806}
+{"timestamp":"2026-08-08T22:30:38+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448099}
+{"timestamp":"2026-08-08T22:30:39+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.267899}
+{"timestamp":"2026-08-08T22:30:40+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.449684}
+{"timestamp":"2026-08-08T22:30:41+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.195311}
+{"timestamp":"2026-08-08T22:30:42+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.448322}
+{"timestamp":"2026-08-08T22:30:42+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":1.227360}
+{"timestamp":"2026-08-08T22:30:43+00:00","kind":"qwen_generation","status":"success","http_status":200,"latency_seconds":0.445523}
+{"timestamp":"2026-08-08T22:30:44+00:00","kind":"rag_search","status":"success","http_status":200,"latency_seconds":4.536784}

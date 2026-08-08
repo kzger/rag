@@ -109,12 +109,33 @@ the Full-Service Co-residency deployment gate.
 
 ## Five-minute gate
 
-After all required containers are healthy, generate representative traffic and
-run:
+After all required containers are healthy, start the monitor first:
 
 ```bash
 scripts/qwen_h100_local_rag.sh monitor \
   docs/research/evidence/qwen-h100-fp8-048-observations.jsonl
+```
+
+While that command is running, use a second shell to submit representative
+multimodal ingestion, generation, and retrieval traffic. The accepted run used
+the following requests; the generation and search requests were repeated until
+the monitor completed:
+
+```bash
+collection=qwen_active_20260808_2
+curl -fsS -X POST http://127.0.0.1:8082/v1/collection \
+  -H 'Content-Type: application/json' \
+  --data "{\"collection_name\":\"$collection\",\"embedding_dimension\":2048,\"metadata_schema\":[]}"
+curl -fsS -X POST http://127.0.0.1:8082/v1/documents \
+  -F 'documents=@data/multimodal/functional_validation.pdf;type=application/pdf' \
+  -F "data={\"collection_name\":\"$collection\",\"blocking\":true,\"generate_summary\":true};type=application/json"
+curl -fsS -X POST http://127.0.0.1:8999/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  --data '{"model":"Qwen/Qwen3.6-27B-FP8","messages":[{"role":"user","content":"In one short sentence, explain why OCR helps multimodal retrieval."}],"max_tokens":48,"temperature":0}'
+curl -fsS -X POST \
+  "http://127.0.0.1:8081/v2/vector_stores/$collection/search" \
+  -H 'Content-Type: application/json' \
+  --data '{"query":"What visual and tabular content appears in the validation document?","max_num_results":6}'
 ```
 
 The command records health, restart counts, and GPU memory/utilization every 15
