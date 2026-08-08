@@ -41,7 +41,7 @@ Blocked by: 05
 
 ## Answer
 
-The FP8 0.48 baseline passed for 305 seconds with all 14 required services
+The FP8 0.48 baseline passed for 306 seconds with all 14 required services
 healthy and unchanged restart counts. Peak memory was 65,520 MiB and minimum
 free memory was 15,560 MiB. The fallback ladder was not run. This ticket stays
 `ready-for-human` only because its blocking lifecycle ticket still has the

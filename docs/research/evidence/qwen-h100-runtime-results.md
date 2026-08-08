@@ -35,6 +35,29 @@ profiles.
 - The only generation process was `qwen-vllm`; default Nemotron LLM/VLM,
   independent captioning, Parse, Paddle, and audio containers were absent.
 
+## Resolved runtime images
+
+The implementation commit is `f318a59`. The following Docker content IDs were
+inspected from the 14 required running containers; they make tag-only upstream
+references reproducible for this observed run.
+
+| Service | Image tag | Runtime content ID |
+| --- | --- | --- |
+| `qwen-vllm` | `vllm/vllm-openai:v0.19.0` | `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90` |
+| `nemotron-vlm-embedding-ms` | `nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0` | `sha256:58c40b920840be6e2f4ad5d77c32c65d61e048070fe45d51fb4bdb6f84a71e21` |
+| `nemotron-ranking-vl-ms` | `nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2:1.11.0` | `sha256:14d3ecb180006d88f32a45e87d426db28abdc9d1c8c2295cf340e74836653439` |
+| `page-elements` | `nvcr.io/nim/nvidia/nemotron-page-elements-v3:1.8.0` | `sha256:cf36bdf27260a0b7217dc449b33653a2c1f57620cfc2686656c2fef8c2e1884b` |
+| `graphic-elements` | `nvcr.io/nim/nvidia/nemotron-graphic-elements-v1:1.8.0` | `sha256:80441d106ac31a7ed95560dcd33c763cdf7aa8687382b3a96539fc1e66d1f22d` |
+| `table-structure` | `nvcr.io/nim/nvidia/nemotron-table-structure-v1:1.8.0` | `sha256:5b0e9e4cfb8aa33c1bb6c99a06b771533c445d3fc0c60f94e977973c9ea16c87` |
+| `nemotron-ocr` | `nvcr.io/nim/nvidia/nemotron-ocr-v1:1.3.0` | `sha256:a26c233f7ad7f675008fcfdcb743dc6f26f4d6838a6e23f887370d3db9df8304` |
+| `nv-ingest-ms-runtime` | `nvcr.io/nvidia/nemo-microservices/nv-ingest:26.3.0` | `sha256:0a804b1d6ca7cbf8b3f386dcd76825ee25eb4056898f3a17c9f39f249afae9be` |
+| `elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:9.3.0` | `sha256:4f6bdcb742e892539c6ac49b0dd3e4e182e90218546e8c6a22db378c344acb60` |
+| `redis` | `redis/redis-stack:7.2.0-v18` | `sha256:cfe04d0cf0184c1ff75cd666083d29a672b3714b5af1fe76db75b5989dca9684` |
+| `seaweedfs` | `chrislusf/seaweedfs:3.73` | `sha256:d372192d42d1d8d8dbfcb73fb6789152d7eeb6e27044f8c0c99202196cfd20fb` |
+| `ingestor-server` | `nvcr.io/nvidia/blueprint/ingestor-server:2.6.0` | `sha256:5573a2ec107015daaeed6994d1f6779a1df57bd3e6f2daa904ac9ab8f0b7a557` |
+| `rag-server` | `nvcr.io/nvidia/blueprint/rag-server:2.6.0` | `sha256:6042ad4d7e271fe1362ce8dbede6df7c659ff3df8878ae718550149c5075c972` |
+| `rag-frontend` | `nvcr.io/nvidia/blueprint/rag-frontend:2.6.0` | `sha256:5cb3f47aa08887c7ca0b2bc8abfcbd1587b9f56712eb437c79c2b2b5887e8347` |
+
 ## Functional follow-up matrix
 
 These results are evidence about wiring and behavior. Per ADR-0001 they do not
@@ -75,12 +98,17 @@ alter the health/restart deployment gate.
 
 The machine-readable observation series is
 [`qwen-h100-fp8-048-observations.jsonl`](qwen-h100-fp8-048-observations.jsonl).
+Timestamped workload evidence is
+[`qwen-h100-active-traffic.jsonl`](qwen-h100-active-traffic.jsonl). During the
+accepted window it records one completed multimodal ingest, 41 successful Qwen
+generations, and 41 successful RAG searches. Observed GPU utilization ranged
+from 0% to 100%, covering idle and active samples.
 The accepted result requires at least 300 seconds with all 14 required
 containers healthy and every restart count unchanged. Peak/minimum GPU values
 are derived from that artifact by `qwen_h100_local_rag.py
 evaluate-observations`.
 
-The evaluator accepted 305 seconds. Every health value was `healthy`, restart
+The evaluator accepted 306 seconds. Every health value was `healthy`, restart
 counts were unchanged, peak memory used was 65,520 MiB, and minimum free memory
 was 15,560 MiB.
 

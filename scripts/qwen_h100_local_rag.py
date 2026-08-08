@@ -156,6 +156,7 @@ def _command(service: dict[str, Any]) -> list[str]:
 
 
 def validate_config(config: dict[str, Any], variant: str = "fp8") -> list[str]:
+    """Return validation errors for a resolved Qwen H100 Compose config."""
     services = config.get("services", {})
     errors: list[str] = []
     model_variant = MODEL_VARIANTS[variant]
@@ -411,6 +412,7 @@ def _load_observations(path: Path) -> list[dict[str, Any]]:
 def evaluate_observations(
     observations: list[dict[str, Any]], minimum_duration: int
 ) -> tuple[list[str], dict[str, int]]:
+    """Evaluate health and restart observations against the co-residency gate."""
     if not observations:
         return ["observation file is empty"], {}
 
@@ -484,6 +486,7 @@ def _run_json(command: list[str]) -> Any:
 
 
 def collect_snapshot(repo_root: Path) -> dict[str, Any]:
+    """Collect one timestamped container-health and GPU-usage snapshot."""
     containers: dict[str, dict[str, Any]] = {}
     compose_command = _compose_command(repo_root)
     for service_name in sorted(REQUIRED_SERVICES):
@@ -553,6 +556,7 @@ def _remaining_monitor_time(
 
 
 def monitor(repo_root: Path, output: Path, duration: int, interval: int) -> None:
+    """Write observation snapshots for at least the requested duration."""
     first_sample_time: float | None = None
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as output_file:
@@ -572,6 +576,7 @@ def monitor(repo_root: Path, output: Path, duration: int, interval: int) -> None
 
 
 def main() -> int:
+    """Run the Qwen H100 validation and observation command-line interface."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     validate_parser = subparsers.add_parser("validate-config")

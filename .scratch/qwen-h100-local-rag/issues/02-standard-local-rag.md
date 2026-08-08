@@ -1,7 +1,7 @@
 # 打通標準 Local RAG Deployment
 
 Type: task
-Status: resolved
+Status: ready-for-human
 Blocked by: 01
 
 ## 目標

@@ -1,7 +1,7 @@
 # 接通多模態 ingestion 與 retrieval
 
 Type: task
-Status: resolved
+Status: ready-for-human
 Blocked by: 02
 
 ## 目標

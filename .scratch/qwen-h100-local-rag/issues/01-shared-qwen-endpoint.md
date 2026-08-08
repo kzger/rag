@@ -1,7 +1,7 @@
 # 建立共享 Qwen endpoint
 
 Type: task
-Status: resolved
+Status: ready-for-human
 Blocked by: None
 
 ## 目標

@@ -1,7 +1,7 @@
 # 啟用並界定進階 RAG pipelines
 
 Type: task
-Status: resolved
+Status: ready-for-human
 Blocked by: 02
 
 ## 目標

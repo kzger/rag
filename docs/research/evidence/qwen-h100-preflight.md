@@ -1,7 +1,7 @@
 # Qwen H100 preflight evidence
 
 Date: 2026-08-08 UTC
-Commit under test: pending implementation commit
+Implementation commit under test: `f318a59`
 
 ## Environment
 
