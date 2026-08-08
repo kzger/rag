@@ -1,7 +1,7 @@
 # 建立共享 Qwen endpoint
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: None
 
 ## 目標
@@ -20,17 +20,26 @@ Blocked by: None
 ## 驗收條件
 
 - [ ] `git branch --show-current` 顯示從 `develop` 建立的 feature branch，且 branch 名稱已記錄在操作文件或變更說明。
-- [ ] Qwen service 的 model repository、immutable model revision/checksum、vLLM image digest、served model name、啟動參數與 GPU 0 assignment 都由已提交的 Compose/env 設定決定。
-- [ ] `docker compose config` 成功，解析後的 host publish 是 `127.0.0.1:8999:8000`，service 同時位於 `nvidia-rag` network。
-- [ ] `nvidia-smi` 證明目標是單張 H100 80GB，且 Qwen process 只使用 GPU 0；不符合時停止並記錄 blocker，不偷偷改成多 GPU。
-- [ ] 第一次啟動完成後，`curl http://127.0.0.1:8999/v1/models` 與文字 `/v1/chat/completions` smoke test 成功，回傳的 model name 與設定一致。
-- [ ] 使用 data URL 圖片的 `/v1/chat/completions` smoke test 成功，證明同一 endpoint 可處理 vision input。
-- [ ] readiness healthcheck 能區分「process 已啟動」與「模型可接受請求」，Qwen 未 ready 時依賴服務不會被判定 ready。
-- [ ] 重建 container 後不重新下載完整模型；cache volume/path 仍存在且模型 endpoint 再次 ready。
-- [ ] `ss -ltn` 顯示 8999 只綁定 loopback，且沒有第二個 generation model container。
+- [x] Qwen service 的 model repository、immutable model revision/checksum、vLLM image digest、served model name、啟動參數與 GPU 0 assignment 都由已提交的 Compose/env 設定決定。
+- [x] `docker compose config` 成功，解析後的 host publish 是 `127.0.0.1:8999:8000`，service 同時位於 `nvidia-rag` network。
+- [x] `nvidia-smi` 證明目標是單張 H100 80GB，且 Qwen process 只使用 GPU 0；不符合時停止並記錄 blocker，不偷偷改成多 GPU。
+- [x] 第一次啟動完成後，`curl http://127.0.0.1:8999/v1/models` 與文字 `/v1/chat/completions` smoke test 成功，回傳的 model name 與設定一致。
+- [x] 使用 data URL 圖片的 `/v1/chat/completions` smoke test 成功，證明同一 endpoint 可處理 vision input。
+- [x] readiness healthcheck 能區分「process 已啟動」與「模型可接受請求」，Qwen 未 ready 時依賴服務不會被判定 ready。
+- [x] 重建 container 後不重新下載完整模型；cache volume/path 仍存在且模型 endpoint 再次 ready。
+- [x] `ss -ltn` 顯示 8999 只綁定 loopback，且沒有第二個 generation model container。
 
 ## 證據
 
 在 ticket 完成紀錄中附上 branch、resolved Compose config、container image digest、model revision/checksum、`nvidia-smi`、兩個 smoke tests、cache 重建結果及 listening socket 摘要。不得記錄 API key 或其他 secret。
 
 ## Comments
+
+## Answer
+
+Implemented on `qwen-h100-local-rag-tickets`. The endpoint, pinned artifacts,
+smokes, cache recreation, and socket evidence are recorded in
+`docs/research/evidence/qwen-h100-runtime-results.md`. The inherited branch was
+created from `main`, not `develop`, so the first provenance checkbox remains
+open and is explicitly recorded as a deviation; changing ancestry after the
+deployment run would invalidate the tested commit lineage.

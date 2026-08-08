@@ -1,7 +1,7 @@
 # 打通標準 Local RAG Deployment
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## 目標
@@ -19,17 +19,22 @@ Blocked by: 01
 
 ## 驗收條件
 
-- [ ] `docker compose config` 成功，且 `.env` 中 LLM/VLM model name 都等於 ticket 01 的 served model name，兩個 URL 都解析到同一 Qwen service。
-- [ ] RAG 與 ingestor 的 embedding 設定完全一致；VLM embedding、VLM reranker 與 Qwen 都只指派 GPU 0。
-- [ ] `docker compose ps` 顯示 Qwen、VLM embedding、VLM reranker、Elasticsearch、必要 CPU dependencies、ingestor、RAG server 與 frontend 均為 running/healthy。
-- [ ] `GET /v1/health?check_dependencies=true` 對 RAG server 與 ingestor server 都成功，health payload 顯示 Elasticsearch 及所選 local model endpoints。
-- [ ] 建立 collection、上傳一份小型文字文件、等待 ingestion 完成，再以 RAG query 取得含該文件內容的回答與 citation。
-- [ ] frontend 可載入、顯示 healthy backend，並能在 Standard pipeline 對同一 collection 完成一次 query。
-- [ ] `docker compose ps` 與 container inspect 證明沒有啟動預設 Nemotron LLM、預設 Nemotron VLM 或獨立 caption-generation container；唯一 generation process 是 ticket 01 的 Qwen。
-- [ ] container 內對 generation endpoint 的連線使用 service DNS，不使用 `localhost:8999` 或 host-published address。
+- [x] `docker compose config` 成功，且 `.env` 中 LLM/VLM model name 都等於 ticket 01 的 served model name，兩個 URL 都解析到同一 Qwen service。
+- [x] RAG 與 ingestor 的 embedding 設定完全一致；VLM embedding、VLM reranker 與 Qwen 都只指派 GPU 0。
+- [x] `docker compose ps` 顯示 Qwen、VLM embedding、VLM reranker、Elasticsearch、必要 CPU dependencies、ingestor、RAG server 與 frontend 均為 running/healthy。
+- [x] `GET /v1/health?check_dependencies=true` 對 RAG server 與 ingestor server 都成功，health payload 顯示 Elasticsearch 及所選 local model endpoints。
+- [x] 建立 collection、上傳一份小型文字文件、等待 ingestion 完成，再以 RAG query 取得含該文件內容的回答與 citation。
+- [x] frontend 可載入、顯示 healthy backend，並能在 Standard pipeline 對同一 collection 完成一次 query。
+- [x] `docker compose ps` 與 container inspect 證明沒有啟動預設 Nemotron LLM、預設 Nemotron VLM 或獨立 caption-generation container；唯一 generation process 是 ticket 01 的 Qwen。
+- [x] container 內對 generation endpoint 的連線使用 service DNS，不使用 `localhost:8999` 或 host-published address。
 
 ## 證據
 
 附上 resolved Compose service 清單、兩個 health responses、ingestion job 結果、query/citation 摘要，以及「實際啟動的 generation containers」檢查結果。測試資料須可安全刪除，且不得提交 secret。
 
 ## Comments
+
+## Answer
+
+Resolved by the committed Compose profile and the standard ingest/query row in
+`docs/research/evidence/qwen-h100-runtime-results.md`.

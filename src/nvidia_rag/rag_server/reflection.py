@@ -50,6 +50,17 @@ from nvidia_rag.utils.vdb.vdb_base import VDBRag
 logger = logging.getLogger(__name__)
 
 
+def _reflection_llm_params(config: NvidiaRAGConfig) -> dict[str, object]:
+    """Build deterministic reflection parameters within the configured token budget."""
+    return {
+        "temperature": 0,
+        "top_p": 0.1,
+        "max_tokens": config.llm.parameters.max_tokens,
+        "api_key": config.reflection.get_api_key(),
+        "enable_thinking": False,
+    }
+
+
 def _retry_score_generation(
     chain, inputs: dict[str, Any], max_retries: int = 3, config: dict[str, Any] = None
 ) -> int:
@@ -193,14 +204,8 @@ async def check_context_relevance(
             ErrorCodeMapping.BAD_REQUEST,
         )
 
-    llm_params = {
-        "model": reflection_llm_name,
-        "temperature": 0,
-        "top_p": 0.1,
-        "max_tokens": 32768,
-        "api_key": config.reflection.get_api_key(),
-        "enable_thinking": False,  # Disable thinking for deterministic scoring/rewriting tasks
-    }
+    llm_params = _reflection_llm_params(config)
+    llm_params["model"] = reflection_llm_name
 
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint
@@ -371,14 +376,8 @@ async def check_response_groundedness(
         )
 
     # Set deterministic LLM parameters for consistent and reproducible reflection
-    llm_params = {
-        "model": reflection_llm_name,
-        "temperature": 0,  # Deterministic sampling for reproducible results
-        "top_p": 0.1,  # Very low top_p for focused, deterministic responses
-        "max_tokens": 32768,  # Large token limit for comprehensive analysis and long responses
-        "api_key": config.reflection.get_api_key(),
-        "enable_thinking": False,  # Disable thinking for deterministic scoring tasks
-    }
+    llm_params = _reflection_llm_params(config)
+    llm_params["model"] = reflection_llm_name
 
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint

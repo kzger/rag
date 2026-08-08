@@ -1,7 +1,7 @@
 # 啟用並界定進階 RAG pipelines
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02
 
 ## 目標
@@ -27,18 +27,24 @@ Blocked by: 02
 
 ## 驗收條件
 
-- [ ] resolved Compose/env 中每個 generation 角色都解析為同一 Qwen model name、service URL；未留下會 fallback 到 NVIDIA-hosted 或預設 Nemotron generation model 的空值/預設值。
-- [ ] query rewriting 對一個依賴 conversation history 的 follow-up question 產生可觀測的 rewritten query，且 retrieval 命中預期內容。
-- [ ] query decomposition 對一個單 collection multi-hop question 產生 subqueries，深度不超過設定上限並完成回答。
-- [ ] filter generation 對具有 metadata schema 的 Elasticsearch collection 產生有效 Query DSL clauses，結果只包含符合條件的文件。
-- [ ] reflection 在 standard RAG 案例執行 relevance/groundedness check，loop 次數不超過上限，且無額外 model process。
-- [ ] ingestion upload 使用 `generate_summary: true` 完成 summary；summary status/result 可取得，Redis 不可用的 degraded behavior 若發生則有明確紀錄。
-- [ ] Agentic request 串流出 planner/execution stage events 與最終 content，四個 agent roles 都命中共享 Qwen endpoint。
-- [ ] frontend 可在 Standard 與 Agentic 間明確切換；UI Standard 所送的 `agentic: false` 與 Agentic 所送的 `agentic: true` 符合預期。
-- [ ] 上述案例逐一執行後服務仍 healthy，沒有 OOM、restart 或第二個 generation container。
+- [x] resolved Compose/env 中每個 generation 角色都解析為同一 Qwen model name、service URL；未留下會 fallback 到 NVIDIA-hosted 或預設 Nemotron generation model 的空值/預設值。
+- [x] query rewriting 對一個依賴 conversation history 的 follow-up question 產生可觀測的 rewritten query，且 retrieval 命中預期內容。
+- [x] query decomposition 對一個單 collection multi-hop question 產生 subqueries，深度不超過設定上限並完成回答。
+- [x] filter generation 對具有 metadata schema 的 Elasticsearch collection 產生有效 Query DSL clauses，結果只包含符合條件的文件。
+- [x] reflection 在 standard RAG 案例執行 relevance/groundedness check，loop 次數不超過上限，且無額外 model process。
+- [x] ingestion upload 使用 `generate_summary: true` 完成 summary；summary status/result 可取得，Redis 不可用的 degraded behavior 若發生則有明確紀錄。
+- [x] Agentic request 串流出 planner/execution stage events 與最終 content，四個 agent roles 都命中共享 Qwen endpoint。
+- [x] frontend 可在 Standard 與 Agentic 間明確切換；UI Standard 所送的 `agentic: false` 與 Agentic 所送的 `agentic: true` 符合預期。
+- [x] 上述案例逐一執行後服務仍 healthy，沒有 OOM、restart 或第二個 generation container。
 
 ## 證據
 
 以一張測試矩陣記錄每個 feature 的 request、必要前置設定、實際 pipeline、Qwen access/log evidence、結果與服務狀態。矩陣必須清楚標示互斥功能，避免用單一「全部開啟」smoke test 代替。
 
 ## Comments
+
+## Answer
+
+All mutually exclusive cases passed independently. Local output-token caps and
+Agentic concurrency 1 keep every role within the shared 8192-token endpoint.
+The functional matrix is the canonical evidence.

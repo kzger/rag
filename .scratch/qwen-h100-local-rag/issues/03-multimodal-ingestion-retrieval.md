@@ -1,7 +1,7 @@
 # 接通多模態 ingestion 與 retrieval
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02
 
 ## 目標
@@ -19,17 +19,24 @@ Blocked by: 02
 
 ## 驗收條件
 
-- [ ] resolved Compose config 明確列出 OCR 與三個 detector services，且四者都使用 GPU 0、具 readiness healthcheck，並只透過 `nvidia-rag` network 提供給 ingestion runtime。
-- [ ] ingestor container 的 caption model name 等於共享 Qwen served model name；兩個 caption endpoint 變數解析到同一 Qwen service 的 `/v1/chat/completions`。
-- [ ] multimodal extraction、image modality、VLM embedding 與 VLM reranker image input 的必要 env 均已設定，RAG/ingestor embedding model、endpoint、dimension 仍完全一致。
-- [ ] `APP_NVINGEST_EXTRACTPAGEASIMAGE=False`、`APP_NVINGEST_PDFEXTRACTMETHOD` 未選 `nemotron_parse`、`APP_NVINGEST_SEGMENTAUDIO=False`，且 Paddle OCR、Nemotron Parse、audio 與獨立 caption model containers 都未啟動。
-- [ ] 一份含連續文字、圖片/圖表及表格的 PDF 可成功 ingest；job/log evidence 顯示 OCR、適用的 detectors、Qwen captioning 與 VLM embedding 都實際被呼叫。
-- [ ] 以文字問題可 retrieve 到圖片或表格衍生內容，VLM reranker 可處理 retrieved image passage，最終回答包含對應 citation。
-- [ ] 對上述文件執行一次帶圖片的 query，並由共享 Qwen endpoint 成功回應。
-- [ ] ingest/query 後所有必要服務仍 healthy，且沒有 GPU OOM 或 container restart。
+- [x] resolved Compose config 明確列出 OCR 與三個 detector services，且四者都使用 GPU 0、具 readiness healthcheck，並只透過 `nvidia-rag` network 提供給 ingestion runtime。
+- [x] ingestor container 的 caption model name 等於共享 Qwen served model name；兩個 caption endpoint 變數解析到同一 Qwen service 的 `/v1/chat/completions`。
+- [x] multimodal extraction、image modality、VLM embedding 與 VLM reranker image input 的必要 env 均已設定，RAG/ingestor embedding model、endpoint、dimension 仍完全一致。
+- [x] `APP_NVINGEST_EXTRACTPAGEASIMAGE=False`、`APP_NVINGEST_PDFEXTRACTMETHOD` 未選 `nemotron_parse`、`APP_NVINGEST_SEGMENTAUDIO=False`，且 Paddle OCR、Nemotron Parse、audio 與獨立 caption model containers 都未啟動。
+- [x] 一份含連續文字、圖片/圖表及表格的 PDF 可成功 ingest；job/log evidence 顯示 OCR、適用的 detectors、Qwen captioning 與 VLM embedding 都實際被呼叫。
+- [x] 以文字問題可 retrieve 到圖片或表格衍生內容，VLM reranker 可處理 retrieved image passage，最終回答包含對應 citation。
+- [x] 對上述文件執行一次帶圖片的 query，並由共享 Qwen endpoint 成功回應。
+- [x] ingest/query 後所有必要服務仍 healthy，且沒有 GPU OOM 或 container restart。
 
 ## 證據
 
 附上非敏感 env 摘要、service health、ingestion stage/log 摘要、retrieved modality/citation、query 結果與排除服務清單。測試 PDF 的來源或生成方式必須可重現。
 
 ## Comments
+
+## Answer
+
+The validation PDF produced 5 text, 2 table, and 4 image elements. Text
+retrieval returned image/table passages, and a separate image-bearing
+`/v1/generate` request succeeded through the shared Qwen endpoint. See the
+canonical runtime result.

@@ -1,0 +1,325 @@
+services:
+  qwen-vllm:
+    image: vllm/vllm-openai:v0.19.0@sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90
+    command:
+      - ${QWEN_MODEL_ID:-Qwen/Qwen3.6-27B-FP8}
+      - --revision
+      - ${QWEN_MODEL_REVISION:-e89b16ebf1988b3d6befa7de50abc2d76f26eb09}
+      - --served-model-name
+      - ${QWEN_SERVED_MODEL_NAME:-Qwen/Qwen3.6-27B-FP8}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --tensor-parallel-size
+      - "1"
+      - --max-model-len
+      - ${QWEN_MAX_MODEL_LEN:-8192}
+      - --gpu-memory-utilization
+      - ${QWEN_GPU_MEMORY_UTILIZATION:-0.48}
+      - --max-num-seqs
+      - "1"
+      - --reasoning-parser
+      - qwen3
+      - --limit-mm-per-prompt
+      - '{"image":2,"video":0}'
+      - --default-chat-template-kwargs
+      - '{"enable_thinking":false}'
+    environment:
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - rag-vol-qwen-cache:/root/.cache/huggingface
+      - rag-vol-vllm-cache:/root/.cache/vllm
+      - rag-vol-flashinfer-cache:/root/.cache/flashinfer
+    ports:
+      - target: 8000
+        published: "8999"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5)
+      interval: 15s
+      timeout: 10s
+      retries: 120
+      start_period: 15m
+    restart: unless-stopped
+    shm_size: 16gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    profiles: [qwen-h100]
+
+  nim-llm:
+    profiles: !override [disabled-default-generation]
+
+  nemotron-embedding-ms:
+    profiles: !override [disabled-text-embedding]
+
+  nemotron-ranking-ms:
+    profiles: !override [disabled-text-reranker]
+
+  vlm-ms:
+    profiles: !override [disabled-default-generation]
+
+  vlm-captioning-ms:
+    profiles: !override [disabled-default-generation]
+
+  paddle:
+    profiles: !override [disabled-excluded-ingestion]
+
+  nemotron-parse:
+    profiles: !override [disabled-excluded-ingestion]
+
+  audio:
+    profiles: !override [disabled-excluded-ingestion]
+
+  nemotron-vlm-embedding-ms:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes: !override
+      - rag-vol-model-cache:/opt/nim/.cache
+    restart: unless-stopped
+
+  nemotron-ranking-vl-ms:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes: !override
+      - rag-vol-model-cache:/opt/nim/.cache
+    restart: unless-stopped
+
+  page-elements:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes:
+      - rag-vol-model-cache:/opt/nim/.cache
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:8000/v1/health/ready]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10m
+    restart: unless-stopped
+
+  graphic-elements:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes:
+      - rag-vol-model-cache:/opt/nim/.cache
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:8000/v1/health/ready]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10m
+    restart: unless-stopped
+
+  table-structure:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes:
+      - rag-vol-model-cache:/opt/nim/.cache
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:8000/v1/health/ready]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10m
+    restart: unless-stopped
+
+  nemotron-ocr:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    volumes:
+      - rag-vol-model-cache:/opt/nim/.cache
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:8000/v1/health/ready]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10m
+    restart: unless-stopped
+
+  seaweedfs:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    restart: unless-stopped
+
+  elasticsearch:
+    profiles: !override [qwen-h100]
+    ports: !override []
+    restart: unless-stopped
+
+  redis:
+    ports: !override []
+    volumes:
+      - rag-vol-redis:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  nv-ingest-ms-runtime:
+    ports: !override []
+    volumes: !override
+      - ${DATASET_ROOT:-./data}:/workspace/data
+      - rag-vol-nv-ingest-models:/workspace/models
+    depends_on:
+      redis:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      qwen-vllm:
+        condition: service_healthy
+      nemotron-vlm-embedding-ms:
+        condition: service_healthy
+      page-elements:
+        condition: service_healthy
+      graphic-elements:
+        condition: service_healthy
+      table-structure:
+        condition: service_healthy
+      nemotron-ocr:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ingestor-server:
+    volumes:
+      - type: bind
+        source: ../../src/nvidia_rag/ingestor_server/health.py
+        target: /workspace/.venv/lib/python3.13/site-packages/nvidia_rag/ingestor_server/health.py
+        read_only: true
+      - type: bind
+        source: ../../src/nvidia_rag/utils/health.py
+        target: /workspace/.venv/lib/python3.13/site-packages/nvidia_rag/utils/health.py
+        read_only: true
+    ports: !override
+      - target: 8082
+        published: "8082"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nv-ingest-ms-runtime:
+        condition: service_healthy
+      qwen-vllm:
+        condition: service_healthy
+      nemotron-vlm-embedding-ms:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8082/v1/health?check_dependencies=true', timeout=5)
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 2m
+    restart: unless-stopped
+
+  rag-server:
+    environment:
+      APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS: ${APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS:-1024}
+      AGENTIC_CONCURRENCY_LIMIT: ${AGENTIC_CONCURRENCY_LIMIT:-1}
+      AGENTIC_PLANNER_LLM_MAX_TOKENS: ${AGENTIC_PLANNER_LLM_MAX_TOKENS:-1024}
+      AGENTIC_TASK_LLM_MAX_TOKENS: ${AGENTIC_TASK_LLM_MAX_TOKENS:-1024}
+      AGENTIC_SEED_GEN_LLM_MAX_TOKENS: ${AGENTIC_SEED_GEN_LLM_MAX_TOKENS:-1024}
+      AGENTIC_SYNTHESIS_LLM_MAX_TOKENS: ${AGENTIC_SYNTHESIS_LLM_MAX_TOKENS:-1024}
+    volumes:
+      - type: bind
+        source: ../../src/nvidia_rag/rag_server/health.py
+        target: /workspace/.venv/lib/python3.13/site-packages/nvidia_rag/rag_server/health.py
+        read_only: true
+      - type: bind
+        source: ../../src/nvidia_rag/rag_server/reflection.py
+        target: /workspace/.venv/lib/python3.13/site-packages/nvidia_rag/rag_server/reflection.py
+        read_only: true
+      - type: bind
+        source: ../../src/nvidia_rag/utils/health.py
+        target: /workspace/.venv/lib/python3.13/site-packages/nvidia_rag/utils/health.py
+        read_only: true
+    ports: !override
+      - target: 8081
+        published: "8081"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      qwen-vllm:
+        condition: service_healthy
+      nemotron-vlm-embedding-ms:
+        condition: service_healthy
+      nemotron-ranking-vl-ms:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8081/v1/health?check_dependencies=true', timeout=5)
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 2m
+    restart: unless-stopped
+
+  rag-frontend:
+    ports: !override
+      - target: 3000
+        published: "8090"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      rag-server:
+        condition: service_healthy
+      ingestor-server:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://localhost:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 1m
+    restart: unless-stopped
+
+volumes:
+  rag-vol-qwen-cache:
+    name: rag-vol-qwen-cache
+  rag-vol-vllm-cache:
+    name: rag-vol-vllm-cache
+  rag-vol-flashinfer-cache:
+    name: rag-vol-flashinfer-cache
+  rag-vol-model-cache:
+    name: rag-vol-model-cache
+  rag-vol-nv-ingest-models:
+    name: rag-vol-nv-ingest-models
+  rag-vol-redis:
+    name: rag-vol-redis
+
+networks:
+  default:
+    name: nvidia-rag

@@ -1,0 +1,505 @@
+{
+  "forbidden_services_present": [],
+  "required_services": [
+    "elasticsearch",
+    "graphic-elements",
+    "ingestor-server",
+    "nemotron-ocr",
+    "nemotron-ranking-vl-ms",
+    "nemotron-vlm-embedding-ms",
+    "nv-ingest-ms-runtime",
+    "page-elements",
+    "qwen-vllm",
+    "rag-frontend",
+    "rag-server",
+    "redis",
+    "seaweedfs",
+    "table-structure"
+  ],
+  "services": {
+    "elasticsearch": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-elasticsearch",
+          "target": "/usr/share/elasticsearch/data",
+          "type": "volume"
+        }
+      ]
+    },
+    "graphic-elements": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/nemotron-graphic-elements-v1:1.8.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    },
+    "ingestor-server": {
+      "command": [],
+      "depends_on": {
+        "elasticsearch": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nemotron-vlm-embedding-ms": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nv-ingest-ms-runtime": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "qwen-vllm": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "redis": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "seaweedfs": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nvidia/blueprint/ingestor-server:2.6.0",
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "published": "8082",
+          "target": 8082
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/prompt.yaml",
+          "target": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/prompt.yaml",
+          "type": "bind"
+        },
+        {
+          "source": "rag-vol-ingestor",
+          "target": "/data",
+          "type": "volume"
+        },
+        {
+          "source": "rag-vol-lancedb",
+          "target": "/volumes/lancedb",
+          "type": "volume"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/ingestor_server/health.py",
+          "target": "/workspace/.venv/lib/python3.13/site-packages/nvidia_rag/ingestor_server/health.py",
+          "type": "bind"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/utils/health.py",
+          "target": "/workspace/.venv/lib/python3.13/site-packages/nvidia_rag/utils/health.py",
+          "type": "bind"
+        }
+      ]
+    },
+    "nemotron-ocr": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/nemotron-ocr-v1:1.3.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    },
+    "nemotron-ranking-vl-ms": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2:1.11.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    },
+    "nemotron-vlm-embedding-ms": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    },
+    "nv-ingest-ms-runtime": {
+      "command": [],
+      "depends_on": {
+        "graphic-elements": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nemotron-ocr": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nemotron-vlm-embedding-ms": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "page-elements": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "qwen-vllm": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "redis": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "seaweedfs": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "table-structure": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nvidia/nemo-microservices/nv-ingest:26.3.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "/home/glows/workspace/jorjin/rag/deploy/compose/data",
+          "target": "/workspace/data",
+          "type": "bind"
+        },
+        {
+          "source": "rag-vol-nv-ingest-models",
+          "target": "/workspace/models",
+          "type": "volume"
+        }
+      ]
+    },
+    "page-elements": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/nemotron-page-elements-v3:1.8.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    },
+    "qwen-vllm": {
+      "command": [
+        "Qwen/Qwen3.6-27B-FP8",
+        "--revision",
+        "e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+        "--served-model-name",
+        "Qwen/Qwen3.6-27B-FP8",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--tensor-parallel-size",
+        "1",
+        "--max-model-len",
+        "8192",
+        "--gpu-memory-utilization",
+        "0.48",
+        "--max-num-seqs",
+        "1",
+        "--reasoning-parser",
+        "qwen3",
+        "--limit-mm-per-prompt",
+        "{\"image\":2,\"video\":0}",
+        "--default-chat-template-kwargs",
+        "{\"enable_thinking\":false}"
+      ],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "vllm/vllm-openai:v0.19.0@sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "published": "8999",
+          "target": 8000
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-qwen-cache",
+          "target": "/root/.cache/huggingface",
+          "type": "volume"
+        }
+      ]
+    },
+    "rag-frontend": {
+      "command": [],
+      "depends_on": {
+        "ingestor-server": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "rag-server": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nvidia/blueprint/rag-frontend:2.6.0",
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "published": "8090",
+          "target": 3000
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": []
+    },
+    "rag-server": {
+      "command": [],
+      "depends_on": {
+        "elasticsearch": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nemotron-ranking-vl-ms": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nemotron-vlm-embedding-ms": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "qwen-vllm": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "seaweedfs": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nvidia/blueprint/rag-server:2.6.0",
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "published": "8081",
+          "target": 8081
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/prompt.yaml",
+          "target": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/prompt.yaml",
+          "type": "bind"
+        },
+        {
+          "source": "rag-vol-lancedb",
+          "target": "/volumes/lancedb",
+          "type": "volume"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/health.py",
+          "target": "/workspace/.venv/lib/python3.13/site-packages/nvidia_rag/rag_server/health.py",
+          "type": "bind"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/rag_server/reflection.py",
+          "target": "/workspace/.venv/lib/python3.13/site-packages/nvidia_rag/rag_server/reflection.py",
+          "type": "bind"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/src/nvidia_rag/utils/health.py",
+          "target": "/workspace/.venv/lib/python3.13/site-packages/nvidia_rag/utils/health.py",
+          "type": "bind"
+        }
+      ]
+    },
+    "redis": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "redis/redis-stack:7.2.0-v18",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-redis",
+          "target": "/data",
+          "type": "volume"
+        }
+      ]
+    },
+    "seaweedfs": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [],
+      "has_healthcheck": true,
+      "image": "chrislusf/seaweedfs:3.73",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-seaweedfs",
+          "target": "/data",
+          "type": "volume"
+        },
+        {
+          "source": "/home/glows/workspace/jorjin/rag/deploy/compose/seaweedfs-config/s3.json",
+          "target": "/etc/seaweedfs/s3.json",
+          "type": "bind"
+        }
+      ]
+    },
+    "table-structure": {
+      "command": [],
+      "depends_on": {},
+      "gpu_device_ids": [
+        "0"
+      ],
+      "has_healthcheck": true,
+      "image": "nvcr.io/nim/nvidia/nemotron-table-structure-v1:1.8.0",
+      "ports": [],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "source": "rag-vol-model-cache",
+          "target": "/opt/nim/.cache",
+          "type": "volume"
+        }
+      ]
+    }
+  },
+  "settings": {
+    "APP_EMBEDDINGS_DIMENSIONS": "2048",
+    "APP_EMBEDDINGS_MODELNAME": "nvidia/llama-nemotron-embed-vl-1b-v2",
+    "APP_EMBEDDINGS_SERVERURL": "http://nemotron-vlm-embedding-ms:8000/v1",
+    "APP_NVINGEST_CAPTIONENDPOINTURL": "http://qwen-vllm:8000/v1/chat/completions",
+    "APP_NVINGEST_CAPTIONMODELNAME": "Qwen/Qwen3.6-27B-FP8",
+    "APP_NVINGEST_EXTRACTCHARTS": "true",
+    "APP_NVINGEST_EXTRACTIMAGES": "true",
+    "APP_NVINGEST_EXTRACTINFOGRAPHICS": "true",
+    "APP_NVINGEST_EXTRACTPAGEASIMAGE": "false",
+    "APP_NVINGEST_EXTRACTTABLES": "true",
+    "APP_NVINGEST_EXTRACTTABLESMETHOD": "yolox",
+    "APP_NVINGEST_EXTRACTTEXT": "true",
+    "APP_NVINGEST_IMAGE_ELEMENTS_MODALITY": "image",
+    "APP_NVINGEST_PDFEXTRACTMETHOD": "None",
+    "APP_NVINGEST_SEGMENTAUDIO": "false",
+    "APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY": "text_image",
+    "NV_INGEST_CONCURRENT_BATCHES": "1",
+    "NV_INGEST_FILES_PER_BATCH": "1",
+    "SUMMARY_LLM": "Qwen/Qwen3.6-27B-FP8",
+    "SUMMARY_LLM_MAX_CHUNK_LENGTH": "6144",
+    "SUMMARY_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "SUMMARY_MAX_PARALLELIZATION": "1",
+    "VLM_CAPTION_ENDPOINT": "http://qwen-vllm:8000/v1/chat/completions",
+    "VLM_CAPTION_MODEL_NAME": "Qwen/Qwen3.6-27B-FP8",
+    "AGENTIC_CONCURRENCY_LIMIT": "1",
+    "AGENTIC_CONTEXT_MAX_TOKENS": "4096",
+    "AGENTIC_PLANNER_LLM_MAX_TOKENS": "1024",
+    "AGENTIC_PLANNER_LLM_MODEL": "Qwen/Qwen3.6-27B-FP8",
+    "AGENTIC_PLANNER_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "AGENTIC_SEED_GEN_LLM_MAX_TOKENS": "1024",
+    "AGENTIC_SEED_GEN_LLM_MODEL": "Qwen/Qwen3.6-27B-FP8",
+    "AGENTIC_SEED_GEN_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "AGENTIC_SYNTHESIS_LLM_MAX_TOKENS": "1024",
+    "AGENTIC_SYNTHESIS_LLM_MODEL": "Qwen/Qwen3.6-27B-FP8",
+    "AGENTIC_SYNTHESIS_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "AGENTIC_TASK_LLM_MAX_TOKENS": "1024",
+    "AGENTIC_TASK_LLM_MODEL": "Qwen/Qwen3.6-27B-FP8",
+    "AGENTIC_TASK_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS": "1024",
+    "APP_FILTEREXPRESSIONGENERATOR_MODELNAME": "Qwen/Qwen3.6-27B-FP8",
+    "APP_FILTEREXPRESSIONGENERATOR_SERVERURL": "http://qwen-vllm:8000/v1",
+    "APP_LLM_MODELNAME": "Qwen/Qwen3.6-27B-FP8",
+    "APP_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "APP_QUERYREWRITER_MODELNAME": "Qwen/Qwen3.6-27B-FP8",
+    "APP_QUERYREWRITER_SERVERURL": "http://qwen-vllm:8000/v1",
+    "APP_RANKING_MODELNAME": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+    "APP_RANKING_SERVERURL": "http://nemotron-ranking-vl-ms:8000",
+    "APP_VLM_ENABLE_THINKING": "false",
+    "APP_VLM_MAX_TOTAL_IMAGES": "2",
+    "APP_VLM_MODELNAME": "Qwen/Qwen3.6-27B-FP8",
+    "APP_VLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "CONVERSATION_HISTORY": "5",
+    "ENABLE_AGENTIC_RAG": "true",
+    "ENABLE_FILTER_GENERATOR": "true",
+    "ENABLE_QUERYREWRITER": "true",
+    "ENABLE_QUERY_DECOMPOSITION": "true",
+    "ENABLE_REFLECTION": "true",
+    "ENABLE_VLM_INFERENCE": "true",
+    "ENABLE_VLM_RERANKER_IMAGE_INPUT": "true",
+    "MAX_RECURSION_DEPTH": "3",
+    "MAX_REFLECTION_LOOP": "3",
+    "REFLECTION_LLM": "Qwen/Qwen3.6-27B-FP8",
+    "REFLECTION_LLM_SERVERURL": "http://qwen-vllm:8000/v1",
+    "VLM_TO_LLM_FALLBACK": "false"
+  }
+}

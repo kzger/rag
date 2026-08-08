@@ -33,8 +33,10 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
+
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
+    _reflection_llm_params,
     _retry_score_generation_async,
     check_context_relevance,
     check_response_groundedness,
@@ -42,6 +44,18 @@ from nvidia_rag.rag_server.reflection import (
 from nvidia_rag.utils.llm import get_llm
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+
+
+def test_reflection_llm_params_respect_configured_generation_limit(mocker):
+    """Reflection must fit the context window selected for a local endpoint."""
+    config = mocker.MagicMock()
+    config.llm.parameters.max_tokens = 1024
+    config.reflection.get_api_key.return_value = "test-key"
+
+    params = _reflection_llm_params(config)
+
+    assert params["max_tokens"] == 1024
+    assert params["enable_thinking"] is False
 
 
 @pytest.mark.asyncio
@@ -193,12 +207,14 @@ async def test_check_context_relevance(mocker):
         # Mock document retrieval from VDBRag (sync - used by ThreadPoolExecutor)
         def mock_retrieval(*args, docs=tc_data["docs"], **kwargs):
             return [docs]
+
         tc_data["vdb_op"].retrieval_langchain = mock_retrieval
 
         # Mock the deterministic scoring mechanism (return low score to trigger reflection)
         # This simulates the deterministic reflection scoring behavior (now async)
         async def mock_retry_score(*args, **kwargs):
             return 0
+
         mocker.patch(
             "nvidia_rag.rag_server.reflection._retry_score_generation_async",
             side_effect=mock_retry_score,
@@ -271,6 +287,7 @@ async def test_check_response_groundedness(mocker):
         # This simulates deterministic groundedness evaluation (now async)
         async def mock_retry_score(*args, **kwargs):
             return 0
+
         mocker.patch(
             "nvidia_rag.rag_server.reflection._retry_score_generation_async",
             side_effect=mock_retry_score,

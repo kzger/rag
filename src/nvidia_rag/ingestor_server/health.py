@@ -34,6 +34,7 @@ import aiohttp
 from pymilvus import connections, utility
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, ObjectStoreConfig
+from nvidia_rag.utils.health import generation_health_url
 from nvidia_rag.utils.health_models import (
     DatabaseHealthInfo,
     HealthResponseBase,
@@ -188,7 +189,9 @@ async def check_object_store_health(
             )
         except Exception as e:
             latency_ms = round((time.time() - start_time) * 1000, 2)
-            logger.error("Error checking filesystem object-store health: %s", e, exc_info=True)
+            logger.error(
+                "Error checking filesystem object-store health: %s", e, exc_info=True
+            )
             return StorageHealthInfo(
                 service="Object Storage",
                 url=config.storage_root.as_uri(),
@@ -209,7 +212,9 @@ async def check_object_store_health(
 
     try:
         start_time = time.time()
-        object_store_operator = get_object_store_operator(config=NvidiaRAGConfig(object_store=config))
+        object_store_operator = get_object_store_operator(
+            config=NvidiaRAGConfig(object_store=config)
+        )
         # Test basic operation - list buckets
         buckets = object_store_operator.client.list_buckets()
         latency_ms = round((time.time() - start_time) * 1000, 2)
@@ -443,10 +448,10 @@ async def check_all_services_health(
         embed_url = config.embeddings.server_url
         if not embed_url.startswith(("http://", "https://")):
             embed_url = f"http://{embed_url}"
-        
+
         # Check if version suffix (v1, v2, vN) is already present in the URL
-        has_version = re.search(r'/v\d+(?:/|$)', embed_url)
-        
+        has_version = re.search(r"/v\d+(?:/|$)", embed_url)
+
         if has_version:
             # Version already present, just add /health/ready
             embed_url = f"{embed_url.rstrip('/')}/health/ready"
@@ -478,11 +483,7 @@ async def check_all_services_health(
     if config.summarizer.server_url and not is_nvidia_api_catalog_url(
         config.summarizer.server_url
     ):
-        llm_url = config.summarizer.server_url
-        if not llm_url.startswith(("http://", "https://")):
-            llm_url = f"http://{llm_url}/v1/health/ready"
-        else:
-            llm_url = f"{llm_url}/v1/health/ready"
+        llm_url = generation_health_url(config.summarizer.server_url)
 
         # For local services, check health and add model info
         llm_result = await check_service_health(url=llm_url, service_name="Summary LLM")
@@ -507,17 +508,7 @@ async def check_all_services_health(
         if config.nv_ingest.caption_endpoint_url and not is_nvidia_api_catalog_url(
             config.nv_ingest.caption_endpoint_url
         ):
-            caption_url = config.nv_ingest.caption_endpoint_url
-            if not caption_url.startswith(("http://", "https://")):
-                caption_url = f"http://{caption_url}/v1/health/ready"
-            else:
-                # For caption endpoints, try health endpoint first, fall back to base URL
-                if caption_url.endswith("/v1/chat/completions"):
-                    caption_url = caption_url.replace(
-                        "/v1/chat/completions", "/v1/health/ready"
-                    )
-                elif not caption_url.endswith("/v1/health/ready"):
-                    caption_url = f"{caption_url}/v1/health/ready"
+            caption_url = generation_health_url(config.nv_ingest.caption_endpoint_url)
 
             # For local services, check health and add model info
             caption_result = await check_service_health(
