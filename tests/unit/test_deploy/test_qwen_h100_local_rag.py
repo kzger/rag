@@ -129,6 +129,12 @@ def test_resolved_qwen_h100_compose_config_is_valid() -> None:
     assert "Qwen H100 compose configuration is valid" in result.stdout
 
 
+def test_qwen_h100_profile_caps_reranked_context_for_8k_window() -> None:
+    config = resolved_compose_config()
+
+    assert config["services"]["rag-server"]["environment"]["APP_RETRIEVER_TOPK"] == "4"
+
+
 def test_config_summary_is_machine_readable_and_excludes_secrets() -> None:
     config = resolved_compose_config()
     result = subprocess.run(

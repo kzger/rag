@@ -68,6 +68,17 @@ scripts/qwen_h100_local_rag.sh ps
 scripts/qwen_h100_local_rag.sh logs --tail 100
 ```
 
+Follow all deployment logs, or narrow them to one or more services:
+
+```bash
+scripts/qwen_h100_local_rag.sh logs --follow --tail 100
+scripts/qwen_h100_local_rag.sh logs --follow --tail 200 rag-server
+scripts/qwen_h100_local_rag.sh logs --since 10m rag-server qwen-vllm
+docker logs --follow --tail 200 rag-server
+```
+
+Press `Ctrl-C` to stop following logs; this does not stop any container.
+
 First startup can take 15–30 minutes while model artifacts populate the named
 caches. Do not start the default `nim-llm`, `vlm-ms`, or `vlm-captioning-ms`
 profiles alongside this deployment.
@@ -203,6 +214,11 @@ commands above to verify automatic recovery.
 - `unknown device` or no GPU: verify `docker run --rm --gpus all` with an
   NVIDIA CUDA image.
 - Qwen initialization OOM: follow the capacity ladder in order.
+- Web UI returns `Error from rag-server` with an 8192-token context error:
+  retain the single-H100 profile's `APP_RETRIEVER_TOPK=4` cap, select fewer
+  collections, and inspect `rag-server` plus `qwen-vllm` logs. The upstream
+  default of 10 reranked documents does not leave enough room for the
+  query-decomposition prompt in this 8K profile.
 - NIM startup timeout: inspect the affected service log and cache volume size;
   first downloads are slow.
 - Dependency health failure: inspect the named dependency first; application

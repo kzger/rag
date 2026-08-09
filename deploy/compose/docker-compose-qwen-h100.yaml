@@ -236,6 +236,10 @@ services:
 
   rag-server:
     environment:
+      # The shared Qwen endpoint has an 8K context window. Query decomposition
+      # includes both retrieved documents and its intermediate answers, so the
+      # upstream default of 10 documents can exceed that window.
+      APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-4}
       APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS: ${APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS:-1024}
       AGENTIC_CONCURRENCY_LIMIT: ${AGENTIC_CONCURRENCY_LIMIT:-1}
       AGENTIC_PLANNER_LLM_MAX_TOKENS: ${AGENTIC_PLANNER_LLM_MAX_TOKENS:-1024}

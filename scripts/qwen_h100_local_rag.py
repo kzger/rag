@@ -288,6 +288,7 @@ def validate_config(config: dict[str, Any], variant: str = "fp8") -> list[str]:
         "ENABLE_AGENTIC_RAG": "true",
         "AGENTIC_CONCURRENCY_LIMIT": "1",
         "AGENTIC_CONTEXT_MAX_TOKENS": "4096",
+        "APP_RETRIEVER_TOPK": "4",
         "APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS": "1024",
     }
     for role in ("PLANNER", "TASK", "SEED_GEN", "SYNTHESIS"):

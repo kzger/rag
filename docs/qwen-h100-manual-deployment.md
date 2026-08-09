@@ -64,7 +64,8 @@ scripts/qwen_h100_local_rag.sh config > /tmp/qwen-h100-compose.yaml
 
 Validation must confirm the pinned Qwen image and model revision, shared Qwen
 roles, one-GPU assignment, required multimodal services, lifecycle policies,
-and exactly four loopback publications.
+the four-document reranked-context cap required by the 8K Qwen window, and
+exactly four loopback publications.
 
 ## 5. Start the deployment
 
