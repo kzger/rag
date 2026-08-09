@@ -175,10 +175,11 @@ The accepted 2026-08-08 result and functional matrix are recorded in
 Run only one generation profile at a time and repeat the complete five-minute
 gate after every change:
 
-1. FP8 baseline: context 8192, GPU memory utilization 0.48.
+1. Current FP8 profile: context 32768, GPU memory utilization 0.48.
 2. Set `QWEN_GPU_MEMORY_UTILIZATION=0.45` in `deploy/compose/.env` and recreate
    `qwen-vllm`.
-3. If required, also set `QWEN_MAX_MODEL_LEN=4096` and recreate it.
+3. If 32K cannot pass the gate, restore the previously accepted context 8192
+   profile; use 4096 only as the final FP8 capacity fallback.
 4. If FP8 still cannot pass, use the pinned NVFP4 override:
 
    ```bash
@@ -217,11 +218,14 @@ commands above to verify automatic recovery.
 - `unknown device` or no GPU: verify `docker run --rm --gpus all` with an
   NVIDIA CUDA image.
 - Qwen initialization OOM: follow the capacity ladder in order.
-- Web UI returns `Error from rag-server` with an 8192-token context error:
-  retain the single-H100 profile's `APP_RETRIEVER_TOPK=4` cap, select fewer
-  collections, and inspect `rag-server` plus `qwen-vllm` logs. The upstream
-  default of 10 reranked documents does not leave enough room for the
-  query-decomposition prompt in this 8K profile.
+- Web UI returns `Error from rag-server` with a context-length error: retain
+  the single-H100 profile's `APP_RETRIEVER_TOPK=4` cap, select fewer
+  collections, and inspect `rag-server` plus `qwen-vllm` logs.
+- Image query reports that the Reflection LLM or reranker is unavailable:
+  verify that the request is running code which skips text reflection and
+  reranking for image queries. Base64 image data must be sent only to
+  multimodal retrieval and VLM generation, never tokenized by those text
+  pipeline stages.
 - NIM startup timeout: inspect the affected service log and cache volume size;
   first downloads are slow.
 - Dependency health failure: inspect the named dependency first; application

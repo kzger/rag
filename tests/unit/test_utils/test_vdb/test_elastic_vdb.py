@@ -1401,7 +1401,9 @@ class TestElasticVDB(unittest.TestCase):
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_weighted_hybrid_custom_query")
+    @patch(
+        "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_weighted_hybrid_custom_query"
+    )
     def test_retrieval_langchain_hybrid_weighted_ranker(
         self,
         mock_custom_query,
@@ -1652,7 +1654,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         # Chunks returned by the page-level filter query
         page_chunk1 = Document(
@@ -1691,7 +1695,7 @@ class TestElasticVDB(unittest.TestCase):
         )
         # Similarity search called with the embedding and top_k
         mock_vectorstore.similarity_search_by_vector_with_relevance_scores.assert_called_once_with(
-            embedding=[0.1, 0.2, 0.3], k=5
+            embedding=[0.1, 0.2, 0.3], k=5, custom_query=ANY
         )
         # Two chunks returned
         self.assertEqual(len(result), 2)
@@ -1700,6 +1704,41 @@ class TestElasticVDB(unittest.TestCase):
         # collection_name propagated
         for doc in result:
             self.assertEqual(doc.metadata["collection_name"], "test_collection")
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_retrieval_image_langchain_keeps_num_candidates_at_least_k(
+        self, mock_vector_store, mock_elasticsearch
+    ):
+        """Image retrieval must not send Elasticsearch num_candidates below k."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = "dense"
+        mock_elasticsearch.return_value = Mock()
+
+        mock_embedding_model = Mock()
+        mock_embedding_model.embed_documents.return_value = [[0.5]]
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=mock_embedding_model,
+            config=mock_config,
+        )
+        mock_vectorstore = Mock()
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = []
+
+        elastic_vdb.retrieval_image_langchain(
+            query="img_data",
+            collection_name="col",
+            vectorstore=mock_vectorstore,
+            top_k=100,
+        )
+
+        custom_query = mock_vectorstore.similarity_search_by_vector_with_relevance_scores.call_args.kwargs[
+            "custom_query"
+        ]
+        query_body = {"knn": {"k": 100, "num_candidates": 50}}
+        self.assertEqual(custom_query(query_body, None)["knn"]["num_candidates"], 100)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
@@ -1731,7 +1770,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         captured = {}
 
@@ -1782,7 +1823,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         captured = {}
 
@@ -1903,7 +1946,9 @@ class TestElasticVDB(unittest.TestCase):
             metadata={"source": {}, "content_metadata": {}},
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(bad_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (bad_doc, 0.9)
+        ]
 
         result = elastic_vdb.retrieval_image_langchain(
             query="img",

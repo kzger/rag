@@ -1421,7 +1421,12 @@ class NvidiaRAG:
 
             # Get relevant documents with optional reflection
             otel_ctx = otel_context.get_current()
-            if self.config.reflection.enable_reflection:
+            if self.config.reflection.enable_reflection and is_image_query:
+                logger.info(
+                    "Skipping text reflection for image search; using multimodal "
+                    "retrieval without reranking."
+                )
+            if self.config.reflection.enable_reflection and not is_image_query:
                 context_reflection_counter = ReflectionCounter(
                     self.config.reflection.max_loops
                 )
@@ -3172,7 +3177,12 @@ class NvidiaRAG:
                 )
 
             # Get relevant documents with optional reflection
-            if self.config.reflection.enable_reflection:
+            if self.config.reflection.enable_reflection and is_image_query:
+                logger.info(
+                    "Skipping text reflection for image query; using multimodal "
+                    "retrieval without reranking."
+                )
+            if self.config.reflection.enable_reflection and not is_image_query:
                 logger.info("=" * 80)
                 logger.info("STAGE: Context Relevance Reflection")
                 logger.info("=" * 80)

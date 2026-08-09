@@ -1,6 +1,6 @@
 # Qwen H100 runtime results
 
-Date: 2026-08-08 UTC
+Date: 2026-08-08 to 2026-08-09 UTC
 
 This is the canonical mutable result record for the Qwen H100 experiment. The
 runbook, research note, glossary, ADR, and tickets link here instead of copying
@@ -15,12 +15,34 @@ the observation series.
   `e89b16ebf1988b3d6befa7de50abc2d76f26eb09`.
 - vLLM: `v0.19.0` image digest
   `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90`.
-- Limits: context 8192, GPU utilization 0.48, generation concurrency 1,
+- Limits: context 32768, GPU utilization 0.48, generation concurrency 1,
   ingestion batching 1, two images, no video, thinking disabled.
 
-The baseline initialized successfully, so FP8 0.45, FP8 4096-context, and
-NVFP4 were not run. They remain fallback configurations, not verified runtime
-profiles.
+The current 32K baseline initialized successfully. The previously accepted 8K
+profile remains the first fallback; FP8 0.45, FP8 4096-context, and NVFP4 were
+not run and remain unverified fallback configurations.
+
+## 32K image-query follow-up
+
+On 2026-08-09, the shared Qwen endpoint was recreated with
+`--max-model-len 32768`. vLLM reported 7.3 GiB available KV-cache memory and
+the Qwen, RAG, and Ingestor containers remained healthy with restart count 0.
+Idle memory after the rebuild was 63,718 MiB used and 17,362 MiB free.
+
+An image-bearing query against `jorjin_glasses` originally revealed two
+independent routing defects rather than a VLM context shortage:
+
+- The base64 data URL reached text reflection and reranking. Image queries now
+  bypass those text-only stages and retain the image for multimodal embedding,
+  retrieval, and final VLM generation.
+- Elasticsearch received `k=100` with its wrapper default
+  `num_candidates=50`. Image retrieval now enforces
+  `num_candidates >= k`.
+
+The corrected query identified the supplied handbag, compared it with the
+J7EF Plus VR-device collection, returned three citations, and completed with
+HTTP 200. Seven additional active-window image queries each returned HTTP 200
+and three citations; seven direct Qwen generations also returned HTTP 200.
 
 ## Endpoint and persistence evidence
 
@@ -109,9 +131,14 @@ containers healthy and every restart count unchanged. Peak/minimum GPU values
 are derived from that artifact by `qwen_h100_local_rag.py
 evaluate-observations`.
 
-The evaluator accepted 305 seconds. Every health value was `healthy`, restart
-counts were unchanged, peak memory used was 65,520 MiB, and minimum free memory
-was 15,560 MiB.
+The original 8K evaluator run accepted 305 seconds. Every health value was
+`healthy`, restart counts were unchanged, peak memory used was 65,520 MiB, and
+minimum free memory was 15,560 MiB.
+
+The 32K follow-up evaluator accepted 314 seconds while the repeated generation
+and image-RAG traffic above was active. All 14 required services remained
+healthy, every restart count was unchanged, peak memory used was 64,412 MiB,
+and minimum free memory was 16,668 MiB.
 
 ## Limitations
 

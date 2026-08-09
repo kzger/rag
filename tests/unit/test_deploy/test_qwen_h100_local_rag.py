@@ -129,9 +129,10 @@ def test_resolved_qwen_h100_compose_config_is_valid() -> None:
     assert "Qwen H100 compose configuration is valid" in result.stdout
 
 
-def test_qwen_h100_profile_caps_reranked_context_for_8k_window() -> None:
+def test_qwen_h100_profile_uses_32k_shared_context_with_bounded_retrieval() -> None:
     config = resolved_compose_config()
 
+    assert "32768" in config["services"]["qwen-vllm"]["command"]
     assert config["services"]["rag-server"]["environment"]["APP_RETRIEVER_TOPK"] == "4"
 
 

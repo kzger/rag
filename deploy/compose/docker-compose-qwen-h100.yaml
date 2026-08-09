@@ -14,7 +14,7 @@ services:
       - --tensor-parallel-size
       - "1"
       - --max-model-len
-      - ${QWEN_MAX_MODEL_LEN:-8192}
+      - ${QWEN_MAX_MODEL_LEN:-32768}
       - --gpu-memory-utilization
       - ${QWEN_GPU_MEMORY_UTILIZATION:-0.48}
       - --max-num-seqs

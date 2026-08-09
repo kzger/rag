@@ -77,7 +77,15 @@ class DummyVDB:
     def get_metadata_schema(self, collection_name: str):
         return []
 
-    def retrieval_langchain(self, query, collection_name, vectorstore=None, top_k=None, filter_expr="", otel_ctx=None):
+    def retrieval_langchain(
+        self,
+        query,
+        collection_name,
+        vectorstore=None,
+        top_k=None,
+        filter_expr="",
+        otel_ctx=None,
+    ):
         """Sync method - called in ThreadPoolExecutor or directly."""
         DummyVDB.last_query = query
         DummyVDB.last_retrieval_method = "langchain"
@@ -169,8 +177,9 @@ async def test_search_uses_query_rewriter_when_enabled(monkeypatch):
 @pytest.mark.asyncio
 async def test_search_skips_query_rewriter_when_history_is_zero(monkeypatch, caplog):
     """Test that query rewriting is skipped with a warning when CONVERSATION_HISTORY=0."""
-    from nvidia_rag.rag_server.main import NvidiaRAG
     import logging
+
+    from nvidia_rag.rag_server.main import NvidiaRAG
 
     # Set CONVERSATION_HISTORY to 0 (default)
     monkeypatch.setenv("CONVERSATION_HISTORY", "0")
@@ -201,7 +210,8 @@ async def test_search_skips_query_rewriter_when_history_is_zero(monkeypatch, cap
     assert fake_vdb.last_query == "How does it work?"
     # Assert: a warning should be logged
     assert any(
-        "Query rewriting is enabled but CONVERSATION_HISTORY is set to 0" in record.message
+        "Query rewriting is enabled but CONVERSATION_HISTORY is set to 0"
+        in record.message
         for record in caplog.records
     )
 
@@ -241,7 +251,7 @@ async def test_search_combines_history_when_multiturn_enabled(monkeypatch):
 
     # Enable multiturn retrieval via environment variable BEFORE creating NvidiaRAG instance
     monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "True")
-    
+
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
     monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
@@ -303,6 +313,39 @@ async def test_search_skips_query_rewriter_for_image_query(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_search_skips_reflection_for_image_query(monkeypatch):
+    """Image search must not send a base64 data URL through text reflection."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    monkeypatch.setenv("ENABLE_REFLECTION", "true")
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    multimodal_query = [
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,x"}},
+    ]
+
+    with patch(
+        "nvidia_rag.rag_server.main.check_context_relevance",
+        new_callable=AsyncMock,
+        return_value=([], True),
+    ) as mock_check_relevance:
+        await rag.search(
+            query=multimodal_query,
+            messages=[],
+            collection_names=["test"],
+            enable_reranker=True,
+            filter_expr="",
+        )
+
+    mock_check_relevance.assert_not_awaited()
+    assert fake_vdb.last_retrieval_method == "image"
+
+
+@pytest.mark.asyncio
 async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     """Test that query rewriting is used in generate when enabled with conversation history."""
     from nvidia_rag.rag_server.main import NvidiaRAG
@@ -323,7 +366,7 @@ async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     ]
 
     # Act: Calling generate() triggers retrieval before returning the stream
-    stream = await rag.generate(
+    await rag.generate(
         messages=messages,
         use_knowledge_base=True,
         collection_names=["test"],
@@ -354,7 +397,7 @@ async def test_generate_uses_only_current_query_when_history_disabled(monkeypatc
         {"role": "user", "content": "How does it work?"},
     ]
 
-    stream = await rag.generate(
+    await rag.generate(
         messages=messages,
         use_knowledge_base=True,
         collection_names=["test"],
@@ -400,7 +443,7 @@ async def test_generate_skips_query_rewriter_for_image_query(monkeypatch):
         mock_vlm_instance = mock_vlm_class.return_value
         mock_vlm_instance.stream_with_messages = _stream
 
-        stream = await rag.generate(
+        await rag.generate(
             messages=messages,
             use_knowledge_base=True,
             collection_names=["test"],
@@ -418,15 +461,66 @@ async def test_generate_skips_query_rewriter_for_image_query(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_generate_skips_reflection_for_image_query(monkeypatch):
+    """Image generation must keep base64 data out of text reflection and reranking."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    monkeypatch.setenv("ENABLE_REFLECTION", "true")
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,x"},
+                },
+            ],
+        },
+    ]
+
+    async def _stream(*args, **kwargs):
+        yield "ok"
+
+    with (
+        patch(
+            "nvidia_rag.rag_server.main.check_context_relevance",
+            new_callable=AsyncMock,
+            return_value=([], True),
+        ) as mock_check_relevance,
+        patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class,
+    ):
+        mock_vlm_class.return_value.stream_with_messages = _stream
+        await rag.generate(
+            messages=messages,
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_query_rewriting=True,
+            enable_reranker=True,
+            enable_vlm_inference=True,
+            filter_expr="",
+        )
+
+    mock_check_relevance.assert_not_awaited()
+    assert fake_vdb.last_retrieval_method == "image"
+
+
+@pytest.mark.asyncio
 async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     """Test that when multiturn_retrieval_simple is True, history is concatenated."""
     from nvidia_rag.rag_server.main import NvidiaRAG
-    
+
     # Enable multiturn retrieval via environment variable BEFORE creating NvidiaRAG instance
     # Also set CONVERSATION_HISTORY > 0 so chat_history is not empty
     monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "True")
     monkeypatch.setenv("CONVERSATION_HISTORY", "5")
-    
+
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
     monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
@@ -437,7 +531,7 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
         {"role": "user", "content": "How does it work?"},
     ]
 
-    stream = await rag.generate(
+    await rag.generate(
         messages=messages,
         use_knowledge_base=True,
         collection_names=["test"],
@@ -447,7 +541,7 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
         filter_expr="",
     )
 
-    # In _rag_chain when multiturn_retrieval_simple is enabled, 
+    # In _rag_chain when multiturn_retrieval_simple is enabled,
     # last previous user query is combined with current retriever_query
     # Expected concatenation: "What is RAG?. How does it work?"
     assert fake_vdb.last_query == "What is RAG?. How does it work?"

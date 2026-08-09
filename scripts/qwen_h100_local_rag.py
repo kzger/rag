@@ -198,7 +198,7 @@ def validate_config(config: dict[str, Any], variant: str = "fp8") -> list[str]:
         qwen_model,
         qwen_revision,
         "--max-model-len",
-        "8192",
+        "32768",
         "--gpu-memory-utilization",
         str(model_variant["memory_utilization"]),
         "--max-num-seqs",

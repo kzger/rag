@@ -21,7 +21,7 @@ services:
       - --moe-backend
       - marlin
       - --max-model-len
-      - ${QWEN_MAX_MODEL_LEN:-8192}
+      - ${QWEN_MAX_MODEL_LEN:-32768}
       - --gpu-memory-utilization
       - "0.40"
       - --max-num-seqs

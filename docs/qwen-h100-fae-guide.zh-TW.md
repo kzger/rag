@@ -6,7 +6,7 @@
 
 - 1 張 NVIDIA H100 80GB，GPU ID `0`。
 - Qwen `Qwen/Qwen3.6-27B-FP8`。
-- vLLM context window `8192`，GPU memory utilization `0.48`。
+- vLLM context window `32768`，GPU memory utilization `0.48`。
 - 所有生成、檢索與 ingestion GPU 服務同時常駐，不採用分時切換。
 - 只有 `127.0.0.1:8090`、`:8081`、`:8082`、`:8999` 對 host 發布。
 
@@ -45,13 +45,15 @@ Ingestor :8082
 
 ### 2.1 模型 context window
 
-`QWEN_MAX_MODEL_LEN` 是 vLLM 可接受的「輸入 tokens + 輸出 tokens」總上限。目前是 `8192`：
+`QWEN_MAX_MODEL_LEN` 是 vLLM 可接受的「輸入 tokens + 輸出 tokens」總上限。目前是 `32768`：
 
 ```text
-input prompt + retrieved context + chat history + requested output <= 8192
+input prompt + retrieved context + chat history + requested output <= 32768
 ```
 
-這是 Qwen process 啟動時的限制，不能只靠 Web UI 改變。
+這是 Qwen process 啟動時的限制，不能只靠 Web UI 改變。本 profile 的
+LLM、VLM、reflection、query rewrite、captioning 與 agentic 角色共用同一個
+Qwen endpoint，因此無法只替 VLM 設定不同的 context window。
 
 ### 2.2 最大輸出 tokens
 
@@ -59,12 +61,14 @@ input prompt + retrieved context + chat history + requested output <= 8192
 
 ### 2.3 放入 prompt 的 retrieval context
 
-`APP_RETRIEVER_TOPK` 決定 reranker 後有多少文件送進生成階段。這個 8K profile 已實測：
+`APP_RETRIEVER_TOPK` 決定 reranker 後有多少文件送進生成階段。先前的 8K
+profile 曾實測：
 
 - `APP_RETRIEVER_TOPK=5`：目前驗證文件會超過 8192 tokens。
 - `APP_RETRIEVER_TOPK=4`：成功。
 
-因此目前 profile 必須保留 `APP_RETRIEVER_TOPK=4`，除非更換模型 context、文件特性並重新完成測試。
+32K profile 仍保留 `APP_RETRIEVER_TOPK=4` 作為單卡共置的保守上限；只有在
+文件特性、GPU 記憶體與完整驗收均重新測試後才能提高。
 
 ## 3. 重要檔案與參數
 
@@ -72,7 +76,7 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 
 | 目的 | 變數 | 基準值 | 需重建的服務 |
 | --- | --- | ---: | --- |
-| Qwen input + output 總 context | `QWEN_MAX_MODEL_LEN` | `8192` | Qwen、RAG、Ingestor、NV-Ingest |
+| Qwen input + output 總 context | `QWEN_MAX_MODEL_LEN` | `32768` | Qwen、RAG、Ingestor、NV-Ingest |
 | vLLM 可使用的 GPU 比例 | `QWEN_GPU_MEMORY_UTILIZATION` | `0.48` | Qwen |
 | 標準 RAG 最大輸出 | `LLM_MAX_TOKENS` | `2048` | RAG |
 | VLM 最大輸出 | `APP_VLM_MAX_TOKENS` | `2048` | RAG |
@@ -86,9 +90,9 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 | Agentic 各角色最大輸出 | `AGENTIC_*_LLM_MAX_TOKENS` | `1024` | RAG |
 | 摘要輸入 chunk | `SUMMARY_LLM_MAX_CHUNK_LENGTH` | `6144` | Ingestor |
 
-Compose override 位於 `deploy/compose/docker-compose-qwen-h100.yaml`。其中包含 Qwen 的 `--max-model-len`、loopback ports、healthcheck、restart policy，以及 8K profile 的 `APP_RETRIEVER_TOPK=4` 預設值。
+Compose override 位於 `deploy/compose/docker-compose-qwen-h100.yaml`。其中包含 Qwen 的 `--max-model-len`、loopback ports、healthcheck、restart policy，以及 32K profile 的 `APP_RETRIEVER_TOPK=4` 預設值。
 
-`scripts/qwen_h100_local_rag.py` 是安全檢查器。它會拒絕偏離已驗證 profile 的設定，例如 context 不是 `8192` 或 `APP_RETRIEVER_TOPK` 不是 `4`。若要建立新的正式 profile，不能繞過 validator；必須同步更新 validator、文件與測試證據。
+`scripts/qwen_h100_local_rag.py` 是安全檢查器。它會拒絕偏離已驗證 profile 的設定，例如 context 不是 `32768` 或 `APP_RETRIEVER_TOPK` 不是 `4`。若要建立新的正式 profile，不能繞過 validator；必須同步更新 validator、文件與測試證據。
 
 ## 4. 第一次部署
 
@@ -269,12 +273,14 @@ scripts/qwen_h100_local_rag.sh up --force-recreate ingestor-server
 在 `deploy/compose/.env` 修改：
 
 ```bash
-export QWEN_MAX_MODEL_LEN=8192
+export QWEN_MAX_MODEL_LEN=32768
 ```
 
 這個值會傳給 vLLM `--max-model-len`。修改後必須重建 Qwen 與所有使用它的服務：
 
-目前 validator 明確只接受 `8192`。要增加為 `12288`、`16384` 或其他值，必須先由工程人員建立新 profile，同步修改 `scripts/qwen_h100_local_rag.py` 的預期值並完成本文件第 8、9 節的測試。新 profile 通過 validator 後，才能執行以下重建指令：
+目前 validator 明確只接受 `32768`。要改成其他值，必須先由工程人員建立新
+profile，同步修改 `scripts/qwen_h100_local_rag.py` 的預期值並完成本文件第
+8、9 節的測試。新 profile 通過 validator 後，才能執行以下重建指令：
 
 ```bash
 scripts/qwen_h100_local_rag.sh up --force-recreate \
@@ -379,6 +385,75 @@ ssh -N \
 
 在 client 瀏覽 `http://127.0.0.1:8090`。選取剛建立的 collection 後提問。若瀏覽器曾保存舊設定，確認 Settings 中的 Reranker Top K 不大於 `4`。
 
+### 8.8 使用圖片查詢知識庫
+
+圖片查詢的目的不是單純「描述圖片」，而是以圖片與文字一起搜尋已選取的
+collection，再由 VLM 根據檢索內容回答。操作前必須先完成第 8.5 節的
+multimodal ingestion。
+
+Web UI 操作：
+
+1. 開啟 `http://127.0.0.1:8090`，在側欄選取已完成 ingestion 的 collection。
+2. 建立新對話，確認 Knowledge Base 與 VLM 已啟用。
+3. 按輸入框的附件按鈕，上傳一張 PNG 或 JPEG。
+4. 在同一則訊息輸入問題，例如「這張圖片中的商品，知識庫有哪些相似資料？」。
+5. 送出後查看答案與 citations；需要顯示知識庫圖片時，展開 citation 詳細資料。
+
+此分支會自動讓圖片 query 略過文字 reflection 與文字 reranker，即使全域設定
+開啟這兩項功能也不會把 base64 圖片誤當成文字 token。圖片仍會送往 VLM
+embedding 做多模態檢索，並送往共享 Qwen 做 VLM generation。這個 routing
+規則是修復 `Reflection LLM NIM unavailable` 假象的必要條件；加大 context
+window 本身不能修復 base64 被送進文字模型的問題。
+
+API 操作範例；請將 collection 與圖片路徑換成實際值：
+
+```bash
+collection=YOUR_COLLECTION
+image_path=data/multimodal/Creme_clutch_purse1-small.jpg
+
+uv run python - "$image_path" "$collection" >/tmp/image-query.json <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+image_path, collection = sys.argv[1:]
+image = base64.b64encode(Path(image_path).read_bytes()).decode()
+payload = {
+    "messages": [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "這張圖片中的物品，知識庫有哪些相似資料？"},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{image}",
+                    "detail": "auto",
+                },
+            },
+        ],
+    }],
+    "use_knowledge_base": True,
+    "collection_names": [collection],
+    "enable_reranker": True,
+    "enable_citations": True,
+    "enable_vlm_inference": True,
+    "enable_filter_generator": False,
+    "agentic": False,
+    "reranker_top_k": 4,
+}
+print(json.dumps(payload))
+PY
+
+curl -N -X POST http://127.0.0.1:8081/v1/generate \
+  -H 'Content-Type: application/json' \
+  --data-binary @/tmp/image-query.json
+```
+
+`/tmp/image-query.json` 含有原始圖片的 base64；測試後應刪除，且不可提交到 Git。
+不要把完整 base64 放在 shell variable 後再傳給 `jq --arg`；一般圖片可能超過
+作業系統的 command-line `ARG_MAX`，導致 `Argument list too long`。
+
 ## 9. 五分鐘 Full-Service Co-residency 驗收
 
 這是 deployment acceptance gate。功能正確率、latency 與 throughput 需記錄，但不是這個 gate 的額外條件。
@@ -408,10 +483,11 @@ uv run python scripts/qwen_h100_local_rag.py evaluate-observations \
 
 若基準 FP8 無法通過，依序測試：
 
-1. FP8、context 8192、GPU utilization 0.48。
-2. FP8、GPU utilization 0.45。
-3. FP8、utilization 0.45、context 4096。
-4. Pinned NVFP4 fallback。
+1. FP8、context 32768、GPU utilization 0.48。
+2. FP8、context 8192、GPU utilization 0.48。
+3. FP8、context 8192、GPU utilization 0.45。
+4. FP8、utilization 0.45、context 4096。
+5. Pinned NVFP4 fallback。
 
 每次只啟動一個 Qwen variant，且每個 profile 都要重新跑完整五分鐘。禁止以分開的 ingestion/query 時段宣稱 Full-Service Co-residency 成功。
 
@@ -428,7 +504,7 @@ scripts/qwen_h100_local_rag.sh logs --since 10m rag-server qwen-vllm
 若看到：
 
 ```text
-maximum context length is 8192 tokens
+maximum context length is ... tokens
 ```
 
 確認：
@@ -438,7 +514,21 @@ curl -fsS http://127.0.0.1:8081/v1/configuration \
   | jq '.rag_configuration | {max_tokens,reranker_top_k,vdb_top_k}'
 ```
 
-本 profile 的 `reranker_top_k` 應為 `4`。若 Web UI 保存了 `10`，在 Settings 改成 `4`、重新整理並建立新對話。不要只降低 `max_tokens`；retrieval pipeline 可能用更多 context 填滿剩餘空間。
+本 profile 的 Qwen 上限應為 `32768`，且 `reranker_top_k` 應為 `4`。若 Web UI
+保存了 `10`，在 Settings 改成 `4`、重新整理並建立新對話。不要只降低
+`max_tokens`；retrieval pipeline 可能用更多 context 填滿剩餘空間。
+
+若只有「上傳圖片 + query」失敗，而且訊息是 `Reflection LLM NIM unavailable`，
+先確認服務已使用本分支最新的本機 build：
+
+```bash
+scripts/qwen_h100_local_rag.sh up --build --force-recreate rag-server
+scripts/qwen_h100_local_rag.sh logs --since 5m rag-server qwen-vllm
+```
+
+修正版 log 應出現 `Skipping text reflection for image`，且不應再出現 reranker
+的 `Input length ... exceeds maximum allowed token size`。若仍有舊錯誤，通常是
+container 仍在使用先前的 prebuilt image，而不是 context window 太小。
 
 ### 10.2 Qwen unhealthy 或 OOM
 
