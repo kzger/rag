@@ -195,6 +195,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Deploy on OpenShift with Helm <deploy-helm-openshift.md>
    Deploy Retrieval-Only Mode <retrieval-only-deployment.md>
    Experimental single-H100 Qwen Local RAG <qwen-h100-local-rag.md>
+   Qwen H100 FAE Guide (Traditional Chinese) <qwen-h100-fae-guide.zh-TW.md>
    Qwen H100 Manual Deployment <qwen-h100-manual-deployment.md>
    Qwen Hardware Revalidation <qwen-hardware-revalidation.md>
    Qwen H100 API Endpoints <qwen-h100-api-endpoints.md>

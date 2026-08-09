@@ -7,6 +7,9 @@ time-shared deployment.
 
 Operator deliverables:
 
+- [`qwen-h100-fae-guide.zh-TW.md`](qwen-h100-fae-guide.zh-TW.md) — Traditional
+  Chinese deployment, tuning, testing, and troubleshooting guide for FAE users
+  without prior RAG/VLM knowledge.
 - [`qwen-h100-manual-deployment.md`](qwen-h100-manual-deployment.md) — complete
   manual installation, validation, SSH access, and lifecycle procedure.
 - [`qwen-hardware-revalidation.md`](qwen-hardware-revalidation.md) — evaluation

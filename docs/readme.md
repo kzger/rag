@@ -56,6 +56,7 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
 - [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
 - [Deploy experimental single-H100 Qwen Local RAG](qwen-h100-local-rag.md)
+- [單張 H100 Qwen Local RAG：FAE 操作手冊](qwen-h100-fae-guide.zh-TW.md)
 
 **Alternative Deployment Options:**
 - [Use the Python Package (Library Mode)](python-client.md) — Use the NVIDIA RAG Python package directly for programmatic access to the RAG system.
