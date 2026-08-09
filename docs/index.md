@@ -54,6 +54,7 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
 - [Deploy on OpenShift with Helm](deploy-helm-openshift.md)
 - [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
+- [Deploy experimental single-H100 Qwen Local RAG](qwen-h100-local-rag.md)
 
 
 **Alternative Deployment Options:**
@@ -193,6 +194,10 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Deploy on Kubernetes with Helm and MIG Support <mig-deployment.md>
    Deploy on OpenShift with Helm <deploy-helm-openshift.md>
    Deploy Retrieval-Only Mode <retrieval-only-deployment.md>
+   Experimental single-H100 Qwen Local RAG <qwen-h100-local-rag.md>
+   Qwen H100 Manual Deployment <qwen-h100-manual-deployment.md>
+   Qwen Hardware Revalidation <qwen-hardware-revalidation.md>
+   Qwen H100 API Endpoints <qwen-h100-api-endpoints.md>
 ```
 
 

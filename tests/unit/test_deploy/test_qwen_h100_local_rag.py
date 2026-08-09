@@ -13,6 +13,8 @@ from scripts.qwen_h100_local_rag import _remaining_monitor_time
 REPO_ROOT = Path(__file__).parents[3]
 COMPOSE_DIR = REPO_ROOT / "deploy" / "compose"
 VALIDATOR = REPO_ROOT / "scripts" / "qwen_h100_local_rag.py"
+START_SCRIPT = REPO_ROOT / "scripts" / "start_qwen_h100_local_rag.sh"
+STOP_SCRIPT = REPO_ROOT / "scripts" / "stop_qwen_h100_local_rag.sh"
 COMPOSE_FILES = [
     COMPOSE_DIR / "nims.yaml",
     COMPOSE_DIR / "vectordb.yaml",
@@ -25,6 +27,49 @@ COMPOSE_FILES = [
 def test_monitor_duration_starts_at_first_completed_sample() -> None:
     assert _remaining_monitor_time(12.5, 312.4, 300, 15) == pytest.approx(0.1)
     assert _remaining_monitor_time(12.5, 312.5, 300, 15) == 0
+
+
+@pytest.mark.parametrize("script", [START_SCRIPT, STOP_SCRIPT])
+def test_lifecycle_wrapper_has_valid_bash_syntax(script: Path) -> None:
+    result = subprocess.run(
+        ["bash", "-n", str(script)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_start_wrapper_rejects_invalid_timeout_before_deployment() -> None:
+    environment = os.environ.copy()
+    environment["QWEN_START_TIMEOUT_SECONDS"] = "0"
+
+    result = subprocess.run(
+        [str(START_SCRIPT)],
+        cwd=REPO_ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "QWEN_START_TIMEOUT_SECONDS must be a positive integer" in result.stderr
+
+
+def test_stop_wrapper_rejects_unknown_mode_without_stopping() -> None:
+    result = subprocess.run(
+        [str(STOP_SCRIPT), "--delete"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Usage:" in result.stderr
 
 
 def run_validator(

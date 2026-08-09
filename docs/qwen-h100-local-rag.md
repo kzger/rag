@@ -5,6 +5,18 @@ This runbook operates the experimental single-GPU deployment described by
 retrieval, and ingestion GPU service resident on one H100. It is not a
 time-shared deployment.
 
+Operator deliverables:
+
+- [`qwen-h100-manual-deployment.md`](qwen-h100-manual-deployment.md) — complete
+  manual installation, validation, SSH access, and lifecycle procedure.
+- [`qwen-hardware-revalidation.md`](qwen-hardware-revalidation.md) — evaluation
+  and acceptance process after changing hardware.
+- [`qwen-h100-api-endpoints.md`](qwen-h100-api-endpoints.md) — published and
+  internal endpoint reference with example requests.
+- `scripts/start_qwen_h100_local_rag.sh` and
+  `scripts/stop_qwen_h100_local_rag.sh` — guarded startup and persistent stop
+  wrappers around the canonical lifecycle command.
+
 ## Prerequisites
 
 - One NVIDIA H100 80GB visible as GPU 0.
