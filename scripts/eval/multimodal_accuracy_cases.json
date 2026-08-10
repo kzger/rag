@@ -1,0 +1,96 @@
+{
+  "version": "jorjin-glasses-weak-query-v1",
+  "cases": [
+    {
+      "id": "j7ef-weak-what",
+      "prompt": "這是什麼？",
+      "image": "../../image/j7ef-plus.jpg",
+      "coverage": ["weak-query"],
+      "expected_sources": ["JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"],
+      "accepted_answer_terms": ["J7EF Plus", "J7EF+"],
+      "forbidden_answer_terms": ["J10A"],
+      "expected_rejection": false
+    },
+    {
+      "id": "j7ef-pronoun-confirmation",
+      "prompt": "是這個嗎？",
+      "image": "../../image/j7ef-plus.jpg",
+      "coverage": ["weak-query", "similar-products"],
+      "expected_sources": ["JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"],
+      "accepted_answer_terms": ["J7EF Plus", "J7EF+"],
+      "forbidden_answer_terms": ["J10A", "不是", "並非"],
+      "expected_rejection": false
+    },
+    {
+      "id": "j7ef-ocr-brand-model",
+      "prompt": "請辨識圖片上可見的品牌或型號。",
+      "image": "../../image/j7ef-plus-ocr-fixture.png",
+      "coverage": ["ocr-model"],
+      "expected_sources": ["JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"],
+      "accepted_answer_terms": ["J7EF Plus", "J7EF+"],
+      "forbidden_answer_terms": ["J10A"],
+      "expected_rejection": false
+    },
+    {
+      "id": "j10a-similar-model-disambiguation",
+      "prompt": "這個產品是哪一個型號？",
+      "image": "../../image/j10a-ocr-fixture.png",
+      "coverage": ["similar-products"],
+      "expected_sources": ["J10A Sales kit.pdf#page=9"],
+      "accepted_answer_terms": ["J10A"],
+      "forbidden_answer_terms": ["J7EF Plus", "J7EF+"],
+      "expected_rejection": false
+    },
+    {
+      "id": "logo-weak-what",
+      "prompt": "這是什麼？",
+      "image": "../../image/logo_max.png",
+      "coverage": ["weak-query", "knowledge-base-no-match"],
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "forbidden_answer_terms": ["J7EF Plus", "J10A", "JORDIN"],
+      "expected_rejection": true
+    },
+    {
+      "id": "logo-pronoun-confirmation",
+      "prompt": "是這個嗎？",
+      "image": "../../image/logo_max.png",
+      "coverage": ["weak-query", "knowledge-base-no-match"],
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "forbidden_answer_terms": ["J7EF Plus", "J10A", "JORDIN"],
+      "expected_rejection": true
+    },
+    {
+      "id": "consecutive-image-isolation-baseline",
+      "prompt": "這又是什麼？",
+      "image": "../../image/logo_max.png",
+      "coverage": ["weak-query", "consecutive-images", "knowledge-base-no-match"],
+      "history": [
+        {
+          "role": "user",
+          "text": "這是什麼？",
+          "image": "../../image/j7ef-plus.jpg"
+        },
+        {
+          "role": "assistant",
+          "text": "先前的圖片可能是 J7EF Plus；請以文件引用為準。"
+        }
+      ],
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "forbidden_answer_terms": ["J7EF Plus", "J10A", "JORDIN"],
+      "expected_rejection": true
+    },
+    {
+      "id": "no-text-product-no-match",
+      "prompt": "這個產品是什麼？",
+      "image": "../../data/multimodal/Creme_clutch_purse1-small.jpg",
+      "coverage": ["no-text-product", "knowledge-base-no-match"],
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "forbidden_answer_terms": ["J7EF Plus", "J10A", "JORJIN"],
+      "expected_rejection": true
+    }
+  ]
+}

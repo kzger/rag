@@ -1,0 +1,112 @@
+{
+  "version": "jorjin-glasses-manual-review-v1",
+  "methodology": "A reviewer split each answer into atomic factual claims, mapped every claim to a literal answer quote, attested exhaustive coverage of material factual claims, checked each claim against the current query image plus the cited knowledge-base page, and recorded whether the answer explicitly rejected insufficient evidence. Subjective style commentary is not treated as a factual claim. Reviews are bound to the exact answer SHA-256 so they cannot be reused after output changes.",
+  "cases": {
+    "j7ef-weak-what": {
+      "answer_sha256": "7bc22c06c0a5476311f84f7d643e4a078b9549acc2d893762ec53c0891bd7df8",
+      "identification_correct": true,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The device is J7EF Plus.", "answer_quote": "J7EF Plus", "supported": true, "evidence": "Query image plus cited J7EF page 3."},
+        {"text": "The cited file and figure identify J7EF Plus.", "answer_quote": "圖 1: J7EF Plus", "supported": true, "evidence": "Cited J7EF page 3."},
+        {"text": "The device has a black head-mounted structure.", "answer_quote": "黑色的頭戴式裝置", "supported": true, "evidence": "Query image."},
+        {"text": "A JREALITY mark is visible.", "answer_quote": "JREALITY", "supported": true, "evidence": "Query image."},
+        {"text": "The surface is carbon-fiber material.", "answer_quote": "碳纖維（carbon fiber）", "supported": false, "evidence": "Texture is visible but material is not established."},
+        {"text": "The cable implies an external power or signal source.", "answer_quote": "外接電源或訊號源", "supported": false, "evidence": "Cable purpose is not established by the cited page."},
+        {"text": "The device is AR rather than VR.", "answer_quote": "而非傳統的 VR 頭盔", "supported": false, "evidence": "The answer labels this as inference and the cited page does not establish it."},
+        {"text": "JORJIN TECHNOLOGIES produces the product.", "answer_quote": "由 JORJIN TECHNOLOGIES 生產", "supported": true, "evidence": "Cited document identity."}
+      ],
+      "rejection_observed": false
+    },
+    "j7ef-pronoun-confirmation": {
+      "answer_sha256": "78c4195b4639fdab1551bf24d674ecf4e761cb0de90b257ac67b63d1d6fe7de5",
+      "identification_correct": true,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "A JREALITY mark is visible.", "answer_quote": "JREALITY", "supported": true, "evidence": "Query image."},
+        {"text": "The pictured object is a head-mounted strap/device.", "answer_quote": "頭帶部分", "supported": true, "evidence": "Query image."},
+        {"text": "The device is black with a textured surface.", "answer_quote": "主要為黑色", "supported": true, "evidence": "Query image."},
+        {"text": "A cable extends from the device.", "answer_quote": "一條線纜", "supported": true, "evidence": "Query image."},
+        {"text": "The cable proves a wired version or external-device requirement.", "answer_quote": "有線版本或需要連接外部設備", "supported": false, "evidence": "The cable purpose is not established."},
+        {"text": "The device belongs to the J7EF Plus product context.", "answer_quote": "J7EF Plus 的頭帶組件", "supported": true, "evidence": "Cited J7EF page 3."},
+        {"text": "The retrieved and query images are different products or versions.", "answer_quote": "不同的產品或不同版本", "supported": false, "evidence": "The cited page does not establish the relationship."}
+      ],
+      "rejection_observed": false
+    },
+    "j7ef-ocr-brand-model": {
+      "answer_sha256": "68309ae7237b6812bb588244245181486ca1ae3b173a44b326ba48ebde6261d7",
+      "identification_correct": true,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The visible query-image label says MODEL J7EF PLUS.", "answer_quote": "MODEL J7EF PLUS", "supported": true, "evidence": "Query image."},
+        {"text": "The cited document confirms J7EF Plus.", "answer_quote": "進一步確認了該產品的型號名稱", "supported": true, "evidence": "Cited J7EF page 3."},
+        {"text": "A separate first image also visibly carries a J7EF Plus label.", "answer_quote": "頭帶上方的小標籤上也印有", "supported": false, "evidence": "That visible label is not established by the retrieved evidence."}
+      ],
+      "rejection_observed": false
+    },
+    "j10a-similar-model-disambiguation": {
+      "answer_sha256": "de676c042f1d7650c121db90cf1856abcb68ed6a19d96415e508bc8196624c38",
+      "identification_correct": false,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The query-image label says MODEL J10A.", "answer_quote": "MODEL J10A", "supported": true, "evidence": "Query image."},
+        {"text": "The knowledge base verifies this product as J10A.", "answer_quote": "這個產品的型號是 **J10A**", "supported": false, "evidence": "Search and generation both cite J7EF page 3, not the J10A document."}
+      ],
+      "rejection_observed": false
+    },
+    "logo-weak-what": {
+      "answer_sha256": "ba4c2882d28ccad880fc86ed580a1f427648f4aacea5593d4a01655a495bd486",
+      "identification_correct": null,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The image is a wordmark/logo.", "answer_quote": "品牌標誌（Logo）", "supported": true, "evidence": "Query image."},
+        {"text": "It contains a red abstract central mark.", "answer_quote": "抽象的紅色圖形", "supported": true, "evidence": "Query image."},
+        {"text": "It uses a black background with dark lettering.", "answer_quote": "背景為黑色", "supported": true, "evidence": "Query image."},
+        {"text": "The brand name is JORDIN.", "answer_quote": "JORDIN", "supported": false, "evidence": "The query wordmark is JORJIN and the cited J10A page does not verify JORDIN."},
+        {"text": "The central mark resembles a stylized 5.", "answer_quote": "風格化的數字 **「5」**", "supported": true, "evidence": "Query image appearance."},
+        {"text": "The colors symbolize energy, authority, and innovation.", "answer_quote": "象徵著能量、權威與創新", "supported": false, "evidence": "No knowledge-base evidence supports the symbolism claim."}
+      ],
+      "rejection_observed": false
+    },
+    "logo-pronoun-confirmation": {
+      "answer_sha256": "15f1fb4f2eb57baf1634b89e5cce831a58843a013cd6e888d69cb3c509f294ef",
+      "identification_correct": null,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The compared images share a wordmark-and-central-mark structure.", "answer_quote": "圖標都位於「R」和「D」之間", "supported": true, "evidence": "Query and retrieved images."},
+        {"text": "The query image has a black background and red central mark.", "answer_quote": "黑色背景、紅色圖標", "supported": true, "evidence": "Query image."},
+        {"text": "The retrieved description uses an orange background.", "answer_quote": "鮮豔的橙色背景", "supported": true, "evidence": "Cited J10A page 9 context."},
+        {"text": "Both images spell the brand JORDIN.", "answer_quote": "兩張圖片都顯示了「JORDIN」", "supported": false, "evidence": "The query image spells JORJIN."},
+        {"text": "Both are confirmed variants of one brand logo.", "answer_quote": "兩張圖片都是這個標誌", "supported": false, "evidence": "The cited page does not establish this relationship."}
+      ],
+      "rejection_observed": false
+    },
+    "consecutive-image-isolation-baseline": {
+      "answer_sha256": "4a6f7d94629097f136e0879aeae3eb946d4e59bbab82f50ff9a970e9177d69d5",
+      "identification_correct": null,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The query image is a logo.", "answer_quote": "品牌標誌（Logo）", "supported": true, "evidence": "Query image."},
+        {"text": "It has dark lettering and a red central mark.", "answer_quote": "紅色抽象圖形", "supported": true, "evidence": "Query image."},
+        {"text": "It has a black background.", "answer_quote": "純黑色背景", "supported": true, "evidence": "Query image."},
+        {"text": "The brand name is JORDIN.", "answer_quote": "JORDIN", "supported": false, "evidence": "The query wordmark is JORJIN."}
+      ],
+      "rejection_observed": false
+    },
+    "no-text-product-no-match": {
+      "answer_sha256": "365f579b18675f8916e2683f6986d18182a6b7ff660329401b69ec9c0b8bba6d",
+      "identification_correct": null,
+      "coverage_attested": true,
+      "claims": [
+        {"text": "The knowledge base supports identifying the object as a white purse.", "answer_quote": "白色的女士手提包", "supported": false, "evidence": "The only candidate/citation is unrelated J7EF page 3."},
+        {"text": "The knowledge base supports a leather or faux-leather material.", "answer_quote": "皮革（或仿皮）", "supported": false, "evidence": "No matching knowledge-base evidence."},
+        {"text": "The knowledge base supports an embossed floral texture.", "answer_quote": "壓花浮雕紋理", "supported": false, "evidence": "No matching knowledge-base evidence."},
+        {"text": "The knowledge base supports a gold flower clasp.", "answer_quote": "金色花朵形狀的金屬扣", "supported": false, "evidence": "No matching knowledge-base evidence."},
+        {"text": "The knowledge base supports gold bead details.", "answer_quote": "細小的金色珠飾", "supported": false, "evidence": "No matching knowledge-base evidence."},
+        {"text": "The knowledge base supports a gold chain strap.", "answer_quote": "金色的金屬鏈條肩帶", "supported": false, "evidence": "No matching knowledge-base evidence."},
+        {"text": "The knowledge base supports shoulder or cross-body use.", "answer_quote": "單肩包或斜挎包", "supported": false, "evidence": "No matching knowledge-base evidence."}
+      ],
+      "rejection_observed": false
+    }
+  }
+}

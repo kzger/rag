@@ -176,3 +176,51 @@ Under `--output_dir` (default `results`), each dataset gets a subfolder named af
 | `rag_<label>_evaluation_summary.json` | Mean metrics (+ token usage summary when available). |
 | `rag_<label>_evaluation_results.json` | Full RAGAS vectors and per-sample usage when present. |
 | `rag_<label>_evaluation_metrics.json` | Structured ingestion + evaluation + token KPIs (`RagEvaluationMetrics`). |
+
+## Weak-text multimodal accuracy baseline
+
+`evaluate_multimodal_accuracy.py` exercises the public streaming `/v1/generate`
+endpoint with versioned image-and-text cases. It is intentionally separate from
+unit tests: the CLI requires a running RAG deployment and an already-ingested
+multimodal collection, while its unit tests use no network services.
+
+The default manifest includes the two supplied images, an OCR fixture with a
+visible `MODEL J7EF PLUS` label, and the repository's text-free purse image. It
+covers weak demonstrative questions, OCR/model identification, similar-product
+confusion, consecutive images, and knowledge-base no-match cases. Run it from
+the repository root:
+
+```bash
+uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
+  --endpoint http://127.0.0.1:8081 \
+  --collection jorjin_glasses \
+  --model Qwen/Qwen3.6-27B-FP8 \
+  --vdb-top-k 100 \
+  --reranker-top-k 5 \
+  --output results/multimodal-accuracy-baseline.json
+```
+
+The evaluator first probes the public multimodal `/v1/search` endpoint and uses
+its ordered results for candidate Hit@K, then measures the public Standard
+`/v1/generate` stream. The report records the dataset version, asset SHA-256
+hashes, non-sensitive candidate settings, citations, candidate Hit@K, verified
+identification, case-level annotated unsupported-claim and rejection metrics,
+plus TTFT/full-response P50 and P95. Its `metric_definitions` field records the
+exact deterministic scoring rules. Images are encoded only in live requests;
+reports contain paths and hashes, and any data URI echoed by a service is
+redacted.
+
+Lexical scoring in the live report is diagnostic only. To publish verified
+identification, unsupported-claim, and rejection metrics, review each exact
+answer against its query image and cited page, map every material factual claim
+to a literal answer quote, attest exhaustive coverage, record support and
+identification verdicts, then bind that review to the answer hashes:
+
+```bash
+uv run --project scripts/eval python scripts/eval/adjudicate_multimodal_accuracy.py \
+  --report results/multimodal-accuracy-baseline.json \
+  --adjudications results/multimodal-accuracy-adjudications.json \
+  --output results/multimodal-accuracy-adjudicated.json
+```
+
+Stale reviews fail closed when any answer SHA-256 changes.
