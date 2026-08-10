@@ -236,9 +236,9 @@ services:
 
   rag-server:
     environment:
-      # The shared Qwen endpoint has an 8K context window. Query decomposition
-      # includes both retrieved documents and its intermediate answers, so the
-      # upstream default of 10 documents can exceed that window.
+      # Keep the validated 32K single-H100 profile's conservative prompt cap.
+      # The explicit value lives in .env; this fallback protects direct Compose
+      # use that omits the canonical env file.
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-4}
       APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS: ${APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS:-1024}
       AGENTIC_CONCURRENCY_LIMIT: ${AGENTIC_CONCURRENCY_LIMIT:-1}

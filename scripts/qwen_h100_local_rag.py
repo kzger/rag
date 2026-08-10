@@ -113,6 +113,7 @@ SAFE_SETTING_KEYS = {
     "APP_QUERYREWRITER_SERVERURL",
     "APP_RANKING_MODELNAME",
     "APP_RANKING_SERVERURL",
+    "APP_RETRIEVER_TOPK",
     "APP_VLM_ENABLE_THINKING",
     "APP_VLM_MAX_TOTAL_IMAGES",
     "APP_VLM_MODELNAME",
@@ -138,6 +139,7 @@ SAFE_SETTING_KEYS = {
     "VLM_CAPTION_ENDPOINT",
     "VLM_CAPTION_MODEL_NAME",
     "VLM_TO_LLM_FALLBACK",
+    "VECTOR_DB_TOPK",
 }
 
 
@@ -288,7 +290,8 @@ def validate_config(config: dict[str, Any], variant: str = "fp8") -> list[str]:
         "ENABLE_AGENTIC_RAG": "true",
         "AGENTIC_CONCURRENCY_LIMIT": "1",
         "AGENTIC_CONTEXT_MAX_TOKENS": "4096",
-        "APP_RETRIEVER_TOPK": "4",
+        #"APP_RETRIEVER_TOPK": "4",
+        "VECTOR_DB_TOPK": "100",
         "APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS": "1024",
     }
     for role in ("PLANNER", "TASK", "SEED_GEN", "SYNTHESIS"):

@@ -41,6 +41,50 @@ Ingestor :8082
 
 共有 14 個必要服務。`rag-server` 顯示 healthy 只表示 API process 存活；完整檢查必須呼叫帶有 `check_dependencies=true` 的 health endpoint。
 
+### 1.1 Port 與服務內容對照
+
+以下是 Qwen H100 profile 的實際 port contract。Host 只發布四個 loopback port；
+`127.0.0.1` 表示只能從主機本身或 SSH tunnel 存取，不應改成 `0.0.0.0`。
+
+| Host port | Container port | Service | 內容／用途 |
+| ---: | ---: | --- | --- |
+| `127.0.0.1:8090` | `rag-frontend:3000` | Web UI | 瀏覽器操作介面 |
+| `127.0.0.1:8081` | `rag-server:8081` | RAG API | Health、configuration、search、generate、summary、metrics |
+| `127.0.0.1:8082` | `ingestor-server:8082` | Ingestor API | Collection、document upload、ingestion status 與 data catalog |
+| `127.0.0.1:8999` | `qwen-vllm:8000` | Shared Qwen OpenAI API | Model discovery、text/image chat completion；同時供 LLM、VLM、caption、summary、rewrite、reflection 與 agentic 使用 |
+
+其餘 port 只存在於 Compose `nvidia-rag` 網路。表中的 HTTP、gRPC 與 metrics
+port 即使同屬一個 NIM，也分列為個別項目，方便依錯誤訊息定位。
+
+| Internal port／endpoint | Service | 內容／用途 | 主要使用者 |
+| --- | --- | --- | --- |
+| `nemotron-vlm-embedding-ms:8000` | VLM Embedding NIM | HTTP embedding API，處理文字與圖片向量 | RAG、Ingestor |
+| `nemotron-ranking-vl-ms:8000` | VLM Reranker NIM | HTTP multimodal reranking API | RAG |
+| `nv-ingest-ms-runtime:7670` | NV-Ingest | HTTP API、readiness 與 ingestion pipeline 入口 | Ingestor |
+| `nv-ingest-ms-runtime:7671` | NV-Ingest | Simple Broker port；本 profile 使用 Redis broker，通常不直接呼叫 | NV-Ingest internal |
+| `nv-ingest-ms-runtime:8265` | NV-Ingest | Ray dashboard／runtime diagnostics | 維運診斷 |
+| `page-elements:8000` | Page Elements NIM | HTTP page-element inference | Ingestor、NV-Ingest |
+| `page-elements:8001` | Page Elements NIM | gRPC page-element inference | NV-Ingest |
+| `page-elements:8002` | Page Elements NIM | NIM metrics | 維運診斷 |
+| `graphic-elements:8000` | Graphic Elements NIM | HTTP graphic-element inference | Ingestor、NV-Ingest |
+| `graphic-elements:8001` | Graphic Elements NIM | gRPC graphic-element inference | NV-Ingest |
+| `graphic-elements:8002` | Graphic Elements NIM | NIM metrics | 維運診斷 |
+| `table-structure:8000` | Table Structure NIM | HTTP table-structure inference | Ingestor、NV-Ingest |
+| `table-structure:8001` | Table Structure NIM | gRPC table-structure inference | NV-Ingest |
+| `table-structure:8002` | Table Structure NIM | NIM metrics | 維運診斷 |
+| `nemotron-ocr:8000` | Nemotron OCR NIM | HTTP OCR inference | Ingestor、NV-Ingest |
+| `nemotron-ocr:8001` | Nemotron OCR NIM | gRPC OCR inference | NV-Ingest |
+| `nemotron-ocr:8002` | Nemotron OCR NIM | NIM metrics | 維運診斷 |
+| `elasticsearch:9200` | Elasticsearch | REST API、向量與文件索引 | RAG、Ingestor |
+| `redis:6379` | Redis | Ingestion message broker、task 與 summary status | NV-Ingest、Ingestor、RAG |
+| `seaweedfs:9010` | SeaweedFS | S3-compatible object API，保存圖片與 multimodal objects | RAG、Ingestor |
+| `seaweedfs:9011` | SeaweedFS | SeaweedFS auxiliary internal port；application data path 使用 `9010` | SeaweedFS internal |
+
+Internal-only port 不可從 host 直接 `curl localhost:<port>` 判定健康，也不要為了
+除錯臨時加入 host mapping。應使用 `scripts/qwen_h100_local_rag.sh logs`、dependency
+health endpoint，或從同一 Compose network 內的 container 呼叫。完整 API path
+請參考 [`qwen-h100-api-endpoints.md`](qwen-h100-api-endpoints.md)。
+
 ## 2. 三種容易混淆的 token 限制
 
 ### 2.1 模型 context window
@@ -57,12 +101,16 @@ Qwen endpoint，因此無法只替 VLM 設定不同的 context window。
 
 ### 2.2 最大輸出 tokens
 
-`LLM_MAX_TOKENS` 與 `APP_VLM_MAX_TOKENS` 只限制最多可生成多少 tokens，不會自動替 retrieval context 保留空間。降低 output token 數不一定能修復 context overflow，因為 pipeline 可能用更多文件填滿剩餘空間。
+`LLM_MAX_TOKENS` 與 `APP_VLM_MAX_TOKENS` 只限制最多可生成多少 tokens，目前
+兩者都是 `8192`；它們不會把模型 context window 從 32768 降成 8192，也不會
+自動替 retrieval context 保留空間。降低 output token 數不一定能修復 context
+overflow，因為 pipeline 可能用更多文件填滿剩餘空間。
 
 ### 2.3 放入 prompt 的 retrieval context
 
-`APP_RETRIEVER_TOPK` 決定 reranker 後有多少文件送進生成階段。先前的 8K
-profile 曾實測：
+retrieval 分成兩層 Top-K：`VECTOR_DB_TOPK` 決定先從 vector DB 取出的候選數，
+`APP_RETRIEVER_TOPK` 決定 reranker 後實際送進生成 prompt 的文件數。目前是
+`100 -> 4`。先前的 8K profile 曾實測：
 
 - `APP_RETRIEVER_TOPK=5`：目前驗證文件會超過 8192 tokens。
 - `APP_RETRIEVER_TOPK=4`：成功。
@@ -74,12 +122,12 @@ profile 曾實測：
 
 Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell 執行 `export`，因為重開機或重新登入後會遺失。
 
-| 目的 | 變數 | 基準值 | 需重建的服務 |
+| 目的 | 變數 | 目前 `.env` 值 | 需重建的服務 |
 | --- | --- | ---: | --- |
 | Qwen input + output 總 context | `QWEN_MAX_MODEL_LEN` | `32768` | Qwen、RAG、Ingestor、NV-Ingest |
 | vLLM 可使用的 GPU 比例 | `QWEN_GPU_MEMORY_UTILIZATION` | `0.48` | Qwen |
-| 標準 RAG 最大輸出 | `LLM_MAX_TOKENS` | `2048` | RAG |
-| VLM 最大輸出 | `APP_VLM_MAX_TOKENS` | `2048` | RAG |
+| 標準 RAG 最大輸出 | `LLM_MAX_TOKENS` | `8192` | RAG |
+| VLM 最大輸出 | `APP_VLM_MAX_TOKENS` | `8192` | RAG |
 | VLM 每次最多圖片 | `APP_VLM_MAX_TOTAL_IMAGES` | `2` | RAG |
 | Reranker 後送進 prompt 的文件數 | `APP_RETRIEVER_TOPK` | `4` | RAG |
 | 從 vector DB 取出、送往 reranker 的候選數 | `VECTOR_DB_TOPK` | `100` | RAG |
@@ -90,9 +138,16 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 | Agentic 各角色最大輸出 | `AGENTIC_*_LLM_MAX_TOKENS` | `1024` | RAG |
 | 摘要輸入 chunk | `SUMMARY_LLM_MAX_CHUNK_LENGTH` | `6144` | Ingestor |
 
-Compose override 位於 `deploy/compose/docker-compose-qwen-h100.yaml`。其中包含 Qwen 的 `--max-model-len`、loopback ports、healthcheck、restart policy，以及 32K profile 的 `APP_RETRIEVER_TOPK=4` 預設值。
+兩個 Top-K 都必須明確寫在 `deploy/compose/.env`，讓該檔保持唯一的本機設定
+來源。Compose override 位於 `deploy/compose/docker-compose-qwen-h100.yaml`；
+其中包含 Qwen 的 `--max-model-len`、loopback ports、healthcheck、restart policy，
+並保留 `APP_RETRIEVER_TOPK=4` fallback，僅用來防止未載入 canonical `.env` 的
+直接 Compose 呼叫失去保守上限。
 
-`scripts/qwen_h100_local_rag.py` 是安全檢查器。它會拒絕偏離已驗證 profile 的設定，例如 context 不是 `32768` 或 `APP_RETRIEVER_TOPK` 不是 `4`。若要建立新的正式 profile，不能繞過 validator；必須同步更新 validator、文件與測試證據。
+`scripts/qwen_h100_local_rag.py` 是安全檢查器。它會拒絕偏離已驗證 profile 的
+設定，例如 context 不是 `32768`、`VECTOR_DB_TOPK` 不是 `100`，或
+`APP_RETRIEVER_TOPK` 不是 `4`。若要建立新的正式 profile，不能繞過 validator；
+必須同步更新 validator、文件與測試證據。
 
 ## 4. 第一次部署
 
@@ -247,9 +302,10 @@ scripts/qwen_h100_local_rag.sh logs --since 10m rag-server qwen-vllm 2>&1 \
 在 `deploy/compose/.env` 調整，例如：
 
 ```bash
-export LLM_MAX_TOKENS=2048
-export APP_VLM_MAX_TOKENS=2048
+export LLM_MAX_TOKENS=8192
+export APP_VLM_MAX_TOKENS=8192
 export APP_VLM_MAX_TOTAL_IMAGES=2
+export VECTOR_DB_TOPK=100
 export APP_RETRIEVER_TOPK=4
 ```
 
@@ -514,9 +570,11 @@ curl -fsS http://127.0.0.1:8081/v1/configuration \
   | jq '.rag_configuration | {max_tokens,reranker_top_k,vdb_top_k}'
 ```
 
-本 profile 的 Qwen 上限應為 `32768`，且 `reranker_top_k` 應為 `4`。若 Web UI
-保存了 `10`，在 Settings 改成 `4`、重新整理並建立新對話。不要只降低
-`max_tokens`；retrieval pipeline 可能用更多 context 填滿剩餘空間。
+本 profile 的 Qwen 上限應為 `32768`、`vdb_top_k` 應為 `100`，且
+`reranker_top_k` 應為 `4`。API/UI request 可以覆寫這兩個 Top-K；因此即使
+container 的環境預設正確，Web UI 若保存了 `10`，仍須在 Settings 改成 `4`、
+重新整理並建立新對話。不要只降低 `max_tokens`；retrieval pipeline 可能用更多
+context 填滿剩餘空間。
 
 若只有「上傳圖片 + query」失敗，而且訊息是 `Reflection LLM NIM unavailable`，
 先確認服務已使用本分支最新的本機 build：

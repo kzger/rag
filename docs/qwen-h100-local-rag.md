@@ -47,6 +47,12 @@ All deployment settings live in the local `deploy/compose/.env`; its committed
 form must contain only non-secret defaults. Model caches and application data
 use named volumes prefixed with `rag-vol-`.
 
+The validated retrieval defaults are explicit in that file:
+`VECTOR_DB_TOPK=100` fetches the vector-store candidate pool and
+`APP_RETRIEVER_TOPK=4` caps the reranked chunks inserted into the shared Qwen
+prompt. Request payloads and saved frontend settings can still override these
+environment defaults.
+
 ## Validate the resolved deployment
 
 The wrapper combines the four Blueprint Compose files with the H100 override.

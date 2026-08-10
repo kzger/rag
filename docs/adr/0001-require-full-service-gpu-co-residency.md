@@ -18,8 +18,10 @@ follow-up tests and are not deployment acceptance gates.
 
 ## Accepted profile
 
-On 2026-08-08 the FP8 baseline (8192 context, 0.48 vLLM GPU utilization,
-concurrency 1) passed the gate on one H100 80GB. The canonical result and
-observation artifact are linked from
-`docs/research/evidence/qwen-h100-runtime-results.md`. Lower FP8 settings and
-NVFP4 were not attempted because the first permitted profile succeeded.
+On 2026-08-08 the initial FP8 baseline (8192 context, 0.48 vLLM GPU
+utilization, concurrency 1) passed the gate on one H100 80GB. On 2026-08-09
+the current 32768-context FP8 profile passed the same five-minute gate under
+active generation and image-RAG traffic. The canonical results and observation
+artifacts are linked from `docs/research/evidence/qwen-h100-runtime-results.md`.
+The 8192-context profile remains the first capacity fallback; lower FP8
+settings and NVFP4 remain unverified.

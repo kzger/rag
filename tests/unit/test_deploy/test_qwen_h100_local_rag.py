@@ -12,6 +12,7 @@ from scripts.qwen_h100_local_rag import _remaining_monitor_time
 
 REPO_ROOT = Path(__file__).parents[3]
 COMPOSE_DIR = REPO_ROOT / "deploy" / "compose"
+COMPOSE_ENV = COMPOSE_DIR / ".env"
 VALIDATOR = REPO_ROOT / "scripts" / "qwen_h100_local_rag.py"
 START_SCRIPT = REPO_ROOT / "scripts" / "start_qwen_h100_local_rag.sh"
 STOP_SCRIPT = REPO_ROOT / "scripts" / "stop_qwen_h100_local_rag.sh"
@@ -134,6 +135,20 @@ def test_qwen_h100_profile_uses_32k_shared_context_with_bounded_retrieval() -> N
 
     assert "32768" in config["services"]["qwen-vllm"]["command"]
     assert config["services"]["rag-server"]["environment"]["APP_RETRIEVER_TOPK"] == "4"
+    assert config["services"]["rag-server"]["environment"]["VECTOR_DB_TOPK"] == "100"
+
+
+def test_qwen_h100_retrieval_defaults_are_explicit_in_compose_env() -> None:
+    exports = {}
+    for line in COMPOSE_ENV.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("export "):
+            continue
+        key, separator, value = line.removeprefix("export ").partition("=")
+        if separator:
+            exports[key] = value
+
+    assert exports["APP_RETRIEVER_TOPK"] == "4"
+    assert exports["VECTOR_DB_TOPK"] == "100"
 
 
 def test_config_summary_is_machine_readable_and_excludes_secrets() -> None:
@@ -156,6 +171,8 @@ def test_config_summary_is_machine_readable_and_excludes_secrets() -> None:
     ]
     assert summary["services"]["qwen-vllm"]["gpu_device_ids"] == ["0"]
     assert summary["settings"]["APP_LLM_SERVERURL"] == ("http://qwen-vllm:8000/v1")
+    assert summary["settings"]["APP_RETRIEVER_TOPK"] == "4"
+    assert summary["settings"]["VECTOR_DB_TOPK"] == "100"
 
 
 def test_validator_rejects_non_loopback_port() -> None:
@@ -166,6 +183,16 @@ def test_validator_rejects_non_loopback_port() -> None:
 
     assert result.returncode == 1
     assert "must bind to 127.0.0.1" in result.stderr
+
+
+def test_validator_rejects_retrieval_candidate_pool_drift() -> None:
+    config = resolved_compose_config()
+    config["services"]["rag-server"]["environment"]["VECTOR_DB_TOPK"] = "50"
+
+    result = run_validator(config)
+
+    assert result.returncode == 1
+    assert "rag-server VECTOR_DB_TOPK must be 100" in result.stderr
 
 
 def test_resolved_nvfp4_fallback_compose_config_is_valid() -> None:

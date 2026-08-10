@@ -91,10 +91,11 @@ Change only one parameter at a time and recreate `qwen-vllm`, `rag-server`,
 `ingestor-server`, and `nv-ingest-ms-runtime`. Repeat functional checks and the
 full five-minute window after every change:
 
-1. FP8, context 8192, GPU memory utilization 0.48.
-2. FP8 with `QWEN_GPU_MEMORY_UTILIZATION=0.45`.
-3. FP8 with utilization 0.45 and `QWEN_MAX_MODEL_LEN=4096`.
-4. Pinned NVFP4 fallback using `QWEN_VARIANT=nvfp4`.
+1. Current FP8 baseline, context 32768, GPU memory utilization 0.48.
+2. Previously accepted FP8 fallback, context 8192, utilization 0.48.
+3. FP8 context 8192 with `QWEN_GPU_MEMORY_UTILIZATION=0.45`.
+4. FP8 with utilization 0.45 and `QWEN_MAX_MODEL_LEN=4096`.
+5. Pinned NVFP4 fallback using `QWEN_VARIANT=nvfp4`.
 
 Never declare success from a mixture of different profiles or separate
 ingestion/query windows. If no allowed profile passes, record Full-Service

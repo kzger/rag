@@ -16,7 +16,8 @@ the observation series.
 - vLLM: `v0.19.0` image digest
   `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90`.
 - Limits: context 32768, GPU utilization 0.48, generation concurrency 1,
-  ingestion batching 1, two images, no video, thinking disabled.
+  vector DB candidates 100, reranked prompt chunks 4, ingestion batching 1,
+  two images, no video, thinking disabled.
 
 The current 32K baseline initialized successfully. The previously accepted 8K
 profile remains the first fallback; FP8 0.45, FP8 4096-context, and NVFP4 were
