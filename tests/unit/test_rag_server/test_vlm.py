@@ -19,9 +19,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from PIL import Image as PILImage
-
 from nvidia_rag.rag_server.vlm import VLM
+from PIL import Image as PILImage
 
 
 class TestVLM:
@@ -484,7 +483,10 @@ class TestVLM:
         ]
 
         redacted = self.vlm._redact_messages_for_logging(messages)
-        assert redacted[1]["content"][0]["image_url"]["url"].endswith("[REDACTED]")
+        logged = str(redacted)
+        assert redacted[1]["content"][0]["image_url"]["url"] == "<image omitted>"
+        assert "data:image" not in logged
+        assert "base64" not in logged
 
     def test_format_docs_text_includes_filename_and_content(self):
         doc = SimpleNamespace(

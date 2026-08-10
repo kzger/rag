@@ -204,6 +204,8 @@ envVars:
 
   ##===VLM Model specific configurations===
   ENABLE_VLM_INFERENCE: "False"
+  # Opt in to diverse image-page retrieval and later multimodal accuracy stages
+  ENABLE_MULTIMODAL_ACCURACY: "False"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
   VLM_TO_LLM_FALLBACK: "False"

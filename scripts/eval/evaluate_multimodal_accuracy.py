@@ -90,6 +90,7 @@ class CaseObservation(NamedTuple):
     citations: list[str]
     ttft_seconds: float
     total_seconds: float
+    search_seconds: float = 0.0
     forbidden_answer_terms: list[str] = []
     error: str | None = None
 
@@ -408,6 +409,9 @@ def compute_metrics(observations: list[CaseObservation]) -> dict[str, Any]:
         if true_positive + false_negative
         else 0.0,
         "latency_seconds": {
+            "retrieval": _latency_summary(
+                [item.search_seconds for item in observations]
+            ),
             "ttft": _latency_summary([item.ttft_seconds for item in observations]),
             "total": _latency_summary([item.total_seconds for item in observations]),
         },
@@ -473,6 +477,9 @@ def build_report(
                 "Precision and recall of configured rejection phrases against cases "
                 "annotated expected_rejection=true."
             ),
+            "retrieval_latency": (
+                "Wall-clock latency of the public /v1/search candidate probe."
+            ),
         },
         "metrics": compute_metrics(observations),
         "cases": [
@@ -493,6 +500,7 @@ def _observation_from_case(
     citations: list[str],
     ttft_seconds: float,
     total_seconds: float,
+    search_seconds: float = 0.0,
     error: str | None = None,
 ) -> CaseObservation:
     """Combine case annotations with request-specific observed values."""
@@ -506,6 +514,7 @@ def _observation_from_case(
         citations=citations,
         ttft_seconds=ttft_seconds,
         total_seconds=total_seconds,
+        search_seconds=search_seconds,
         forbidden_answer_terms=case.forbidden_answer_terms,
         error=error,
     )
@@ -530,6 +539,7 @@ def evaluate(
             )
             search_response.raise_for_status()
             candidate_sources = parse_search_candidates(search_response.json())
+            search_seconds = time.perf_counter() - started_at
             generate_started_at = time.perf_counter()
             with requests.post(
                 base_url + "/v1/generate",
@@ -549,6 +559,7 @@ def evaluate(
                     citations=stream.citations,
                     ttft_seconds=stream.ttft_seconds,
                     total_seconds=stream.total_seconds,
+                    search_seconds=search_seconds,
                 )
             )
         except (requests.RequestException, json.JSONDecodeError) as error:
@@ -561,6 +572,7 @@ def evaluate(
                     citations=[],
                     ttft_seconds=elapsed,
                     total_seconds=elapsed,
+                    search_seconds=elapsed,
                     error=f"{type(error).__name__}: {error}",
                 )
             )

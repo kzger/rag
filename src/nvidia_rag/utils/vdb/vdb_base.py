@@ -40,11 +40,15 @@ Retrieval Operations:
 11. retrieve_chunks_by_filter: Retrieve chunks by metadata filter (source, page_numbers)
 """
 
+import logging
+import math
 from abc import ABC, abstractmethod
 from typing import Any
 
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStore
+
+logger = logging.getLogger(__name__)
 
 
 class VDBRag(ABC):
@@ -300,6 +304,7 @@ class VDBRag(ABC):
         vectorstore: VectorStore | None = None,
         top_k: int = 10,
         reranker_top_k: int | None = None,
+        diverse_pages: bool = False,
     ) -> list[Document]:
         """Retrieve documents from a collection using an image query.
 
@@ -313,6 +318,7 @@ class VDBRag(ABC):
             top_k: Number of results for initial similarity search (VDB top_k)
             reranker_top_k: Final number of documents to return (smaller value).
                            If None, defaults to top_k.
+            diverse_pages: Return aggregated candidates from multiple unique pages.
 
         Returns:
             List of LangChain Document objects with page_content and metadata
@@ -320,3 +326,110 @@ class VDBRag(ABC):
         raise NotImplementedError(
             "retrieval_image_langchain is not implemented for this vector store"
         )
+
+    def _image_page_identity(self, document: Document) -> tuple[str, int] | None:
+        """Return the source/page identity required by diverse image retrieval."""
+        source = document.metadata.get("source")
+        source_name = source.get("source_name") if isinstance(source, dict) else source
+        content_metadata = document.metadata.get("content_metadata")
+        page_number = (
+            content_metadata.get("page_number")
+            if isinstance(content_metadata, dict)
+            else None
+        )
+        if (
+            not isinstance(source_name, str)
+            or not source_name
+            or not isinstance(page_number, int)
+        ):
+            return None
+        return source_name, page_number
+
+    def _aggregate_image_page_candidates(
+        self,
+        scored: list[tuple[Document, Any]],
+        collection_name: str,
+        max_pages: int,
+    ) -> list[Document]:
+        """Build ranked, chunk-preserving candidates from image-search hits."""
+        candidates: list[Document] = []
+        seen_pages: set[tuple[str, int]] = set()
+        for rank, (document, score) in enumerate(scored, start=1):
+            identity = self._image_page_identity(document)
+            if identity is None:
+                logger.warning(
+                    "Skipping image retrieval result at rank %d: required source/page metadata is missing",
+                    rank,
+                )
+                continue
+            try:
+                raw_score = float(score)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping image retrieval result at rank %d: raw similarity score is missing or invalid",
+                    rank,
+                )
+                continue
+            if isinstance(score, bool) or not math.isfinite(raw_score):
+                logger.warning(
+                    "Skipping image retrieval result at rank %d: raw similarity score is missing or invalid",
+                    rank,
+                )
+                continue
+            if identity in seen_pages:
+                continue
+            source_name, page_number = identity
+            chunks = self.retrieve_chunks_by_filter(
+                collection_name=collection_name,
+                source_name=source_name,
+                page_numbers=[page_number],
+                limit=1000,
+            )
+            if not chunks:
+                chunks = [document]
+            valid_chunks: list[Document] = []
+            for chunk in chunks:
+                chunk_metadata = chunk.metadata
+                content_metadata = chunk_metadata.get("content_metadata")
+                if content_metadata is not None and not isinstance(
+                    content_metadata, dict
+                ):
+                    logger.warning(
+                        "Skipping malformed expanded chunk for image retrieval result at rank %d",
+                        rank,
+                    )
+                    continue
+                valid_chunks.append(chunk)
+            if not valid_chunks:
+                logger.warning(
+                    "Skipping image retrieval result at rank %d: no chunks have valid metadata",
+                    rank,
+                )
+                continue
+            chunks = valid_chunks
+            content = "\n\n".join(
+                chunk.page_content for chunk in chunks if chunk.page_content
+            )
+            metadata = dict(chunks[0].metadata)
+            metadata.setdefault("source", document.metadata.get("source", source_name))
+            page_metadata = dict(metadata.get("content_metadata") or {})
+            page_metadata["page_number"] = page_number
+            metadata["content_metadata"] = page_metadata
+            metadata["collection_name"] = collection_name
+            metadata["image_retrieval"] = {
+                "raw_score": raw_score,
+                "rank": rank,
+                "chunk_count": len(chunks),
+                "chunks": [
+                    {
+                        "page_content": chunk.page_content,
+                        "metadata": chunk.metadata,
+                    }
+                    for chunk in chunks
+                ],
+            }
+            candidates.append(Document(page_content=content, metadata=metadata))
+            seen_pages.add(identity)
+            if len(candidates) >= max_pages:
+                break
+        return candidates

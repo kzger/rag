@@ -128,6 +128,7 @@ def test_compute_metrics_covers_retrieval_identification_and_rejection() -> None
             citations=["manual.pdf#page=3"],
             ttft_seconds=0.2,
             total_seconds=0.8,
+            search_seconds=0.12,
         ),
         multimodal_eval.CaseObservation(
             case_id="no-match",
@@ -139,6 +140,7 @@ def test_compute_metrics_covers_retrieval_identification_and_rejection() -> None
             citations=[],
             ttft_seconds=0.4,
             total_seconds=1.2,
+            search_seconds=0.2,
         ),
         multimodal_eval.CaseObservation(
             case_id="negated-match",
@@ -150,6 +152,7 @@ def test_compute_metrics_covers_retrieval_identification_and_rejection() -> None
             citations=["manual.pdf#page=3"],
             ttft_seconds=0.3,
             total_seconds=1.0,
+            search_seconds=0.16,
         ),
     ]
 
@@ -162,6 +165,7 @@ def test_compute_metrics_covers_retrieval_identification_and_rejection() -> None
     assert metrics["low_confidence_rejection_recall"] == 1.0
     assert metrics["latency_seconds"]["ttft"]["p50"] == pytest.approx(0.3)
     assert metrics["latency_seconds"]["total"]["p95"] == pytest.approx(1.18)
+    assert metrics["latency_seconds"]["retrieval"]["p50"] == pytest.approx(0.16)
 
 
 def test_identification_requires_generate_citation_not_only_search_hit() -> None:

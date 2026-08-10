@@ -25,9 +25,6 @@ from urllib.parse import urlparse
 import pytest
 import requests
 from langchain_core.documents import Document
-from pydantic import SecretStr
-from pymilvus import MilvusException
-
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.configuration import RankerType, SearchType
 from nvidia_rag.utils.vdb import (
@@ -35,6 +32,8 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_METADATA_SCHEMA_COLLECTION,
 )
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import BYPASS_METADATA_THRESHOLD, MilvusVDB
+from pydantic import SecretStr
+from pymilvus import MilvusException
 
 
 def _try_import_nv_ingest_milvus() -> ModuleType | None:
@@ -70,6 +69,94 @@ def _make_dummy_milvus_vdb_for_delete():
 
 class TestMilvusVDB:
     """Test the MilvusVDB class."""
+
+    def test_ensure_image_page_identity_adds_and_backfills_grouping_field(
+        self,
+    ) -> None:
+        vdb = object.__new__(MilvusVDB)
+        vdb._client = MagicMock()
+        vdb._page_identity_ready_collections = set()
+        vdb._client.describe_collection.return_value = {
+            "fields": [{"name": "pk", "is_primary": True}]
+        }
+        iterator = MagicMock()
+        iterator.next.side_effect = [
+            [
+                {
+                    "pk": 7,
+                    "source": {"source_name": "/doc.pdf"},
+                    "content_metadata": {"page_number": 0},
+                },
+                {"pk": 8, "source": {"source_name": "/malformed.pdf"}},
+            ],
+            [],
+        ]
+        vdb._client.query_iterator.return_value = iterator
+
+        assert vdb._ensure_image_page_identity("collection") is True
+
+        vdb._client.add_collection_field.assert_called_once()
+        vdb._client.upsert.assert_called_once_with(
+            collection_name="collection",
+            data=[{"pk": 7, "image_page_identity": "/doc.pdf#page=0"}],
+            partial_update=True,
+        )
+        iterator.close.assert_called_once()
+
+    @patch.object(MilvusVDB, "_aggregate_image_page_candidates")
+    def test_retrieval_image_langchain_aggregates_diverse_pages(
+        self,
+        mock_aggregate: MagicMock,
+    ) -> None:
+        vdb = object.__new__(MilvusVDB)
+        vdb.embedding_model = MagicMock()
+        vdb.embedding_model.embed_documents.return_value = [[0.1, 0.2]]
+        vdb._ensure_image_page_identity = MagicMock(return_value=True)
+        scored = [
+            (
+                Document(
+                    page_content="x",
+                    metadata={
+                        "source": {"source_name": "/a.pdf"},
+                        "content_metadata": {"page_number": 1},
+                    },
+                ),
+                0.9,
+            )
+        ]
+        vectorstore = MagicMock()
+        vectorstore.similarity_search_with_score_by_vector.return_value = scored
+        mock_aggregate.return_value = [scored[0][0]]
+
+        result = vdb.retrieval_image_langchain(
+            "img",
+            "coll",
+            vectorstore=vectorstore,
+            top_k=4,
+            reranker_top_k=3,
+            diverse_pages=True,
+        )
+
+        assert result == [scored[0][0]]
+        assert (
+            vectorstore.similarity_search_with_score_by_vector.call_args.kwargs["k"]
+            == 4
+        )
+        assert (
+            vectorstore.similarity_search_with_score_by_vector.call_args.kwargs[
+                "group_by_field"
+            ]
+            == "image_page_identity"
+        )
+        assert (
+            vectorstore.similarity_search_with_score_by_vector.call_args.kwargs["expr"]
+            == "image_page_identity is not null"
+        )
+        mock_aggregate.assert_called_once_with(
+            scored=scored,
+            collection_name="coll",
+            max_pages=3,
+        )
 
     @pytest.fixture(autouse=True)
     def _patch_milvus_client(self):
@@ -225,7 +312,9 @@ class TestMilvusVDB:
             result = vdb.check_collection_exists("test_collection")
 
             assert result is True
-            mock_milvus_client.return_value.has_collection.assert_called_with("test_collection")
+            mock_milvus_client.return_value.has_collection.assert_called_with(
+                "test_collection"
+            )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -476,7 +565,9 @@ class TestMilvusVDB:
     def test_delete_collections_exception(self, mock_connections, mock_milvus_client):
         """Test _delete_collections method with exception."""
         mock_milvus_client.return_value.has_collection.return_value = True
-        mock_milvus_client.return_value.drop_collection.side_effect = Exception("Drop error")
+        mock_milvus_client.return_value.drop_collection.side_effect = Exception(
+            "Drop error"
+        )
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -677,8 +768,7 @@ class TestMilvusVDB:
         mock_client.has_collection.return_value = True
 
         large_map = {
-            f"doc{i}.txt": {"pages": i}
-            for i in range(BYPASS_METADATA_THRESHOLD + 1)
+            f"doc{i}.txt": {"pages": i} for i in range(BYPASS_METADATA_THRESHOLD + 1)
         }
 
         with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
@@ -704,7 +794,9 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_no_collection(self, mock_connections, mock_milvus_client):
+    def test_get_documents_list_no_collection(
+        self, mock_connections, mock_milvus_client
+    ):
         """Test _get_documents_list method when collection doesn't exist."""
         mock_milvus_client.return_value.has_collection.return_value = False
 
@@ -748,7 +840,9 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_iterator_none(self, mock_connections, mock_milvus_client):
+    def test_get_documents_list_iterator_none(
+        self, mock_connections, mock_milvus_client
+    ):
         """Test _get_documents_list method when iterator returns None."""
         mock_client = mock_milvus_client.return_value
         mock_client.has_collection.return_value = True
@@ -978,7 +1072,11 @@ class TestMilvusVDB:
         vdb._client.get_compaction_state.return_value = "Completed"
 
         with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
-            mock_time.monotonic.side_effect = [0.0, 0.6, 30.0]  # start, after sleep, deadline
+            mock_time.monotonic.side_effect = [
+                0.0,
+                0.6,
+                30.0,
+            ]  # start, after sleep, deadline
             mock_time.sleep = Mock()
             vdb._compact_and_wait("test_collection", timeout=30.0)
 
@@ -1131,9 +1229,7 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context")
-    def test_retrieval_langchain(
-        self, mock_otel, mock_time, mock_connections
-    ):
+    def test_retrieval_langchain(self, mock_otel, mock_time, mock_connections):
         """Test retrieval_langchain method (real LCEL chain, mocked retriever only)."""
         mock_config = Mock()
         mock_time.time.side_effect = [0.0, 1.5]
@@ -1311,7 +1407,9 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
-    def test_retrieval_langchain_hybrid_weighted_ranker(self, mock_time, mock_connections):
+    def test_retrieval_langchain_hybrid_weighted_ranker(
+        self, mock_time, mock_connections
+    ):
         """Test retrieval_langchain with hybrid search and weighted ranker type."""
         mock_config = Mock()
         mock_config.vector_store.search_type = SearchType.HYBRID

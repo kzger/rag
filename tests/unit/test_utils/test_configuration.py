@@ -467,6 +467,7 @@ class TestNvidiaRAGConfig:
         assert config.enable_guardrails is False
         assert config.enable_citations is True
         assert config.enable_vlm_inference is False
+        assert config.enable_multimodal_accuracy is False
         assert config.temp_dir == "./tmp-data"
 
     @patch.dict(os.environ, {}, clear=True)
@@ -476,6 +477,7 @@ class TestNvidiaRAGConfig:
             "ENABLE_GUARDRAILS": "true",
             "ENABLE_CITATIONS": "false",
             "ENABLE_VLM_INFERENCE": "true",
+            "ENABLE_MULTIMODAL_ACCURACY": "true",
             "TEMP_DIR": "/custom/temp",
         }
 
@@ -485,6 +487,7 @@ class TestNvidiaRAGConfig:
             assert config.enable_guardrails is True
             assert config.enable_citations is False
             assert config.enable_vlm_inference is True
+            assert config.enable_multimodal_accuracy is True
             assert config.temp_dir == "/custom/temp"
 
     @patch.dict(os.environ, {}, clear=True)

@@ -1359,6 +1359,14 @@ class NvidiaRAGConfig(_ConfigBase):
         env="ENABLE_VLM_INFERENCE",
         description="Enable Vision-Language Model for multimodal queries",
     )
+    enable_multimodal_accuracy: bool = Field(
+        default=False,
+        env="ENABLE_MULTIMODAL_ACCURACY",
+        description=(
+            "Enable the staged multimodal retrieval and verification accuracy "
+            "pipeline. Disabled by default to preserve legacy image retrieval."
+        ),
+    )
     vlm_to_llm_fallback: bool = Field(
         default=True,
         env="VLM_TO_LLM_FALLBACK",

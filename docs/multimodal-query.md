@@ -92,6 +92,9 @@ export SUMMARY_LLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="nemotron-vlm-embedding-ms:8000/v1"
 export ENABLE_VLM_INFERENCE="true"
+# Optional staged accuracy pipeline. Elasticsearch image retrieval keeps up to
+# APP_RETRIEVER_TOPK unique document pages from VECTOR_DB_TOPK similarity hits.
+export ENABLE_MULTIMODAL_ACCURACY="true"
 export VLM_TO_LLM_FALLBACK="false"
 ```
 
@@ -186,6 +189,7 @@ export SUMMARY_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
 export ENABLE_VLM_INFERENCE="true"
+export ENABLE_MULTIMODAL_ACCURACY="true"  # Optional diverse Elasticsearch pages
 export VLM_TO_LLM_FALLBACK="false"
 ```
 
@@ -286,6 +290,7 @@ nimOperator:
 envVars:
   # VLM inference settings
   ENABLE_VLM_INFERENCE: "true"
+  ENABLE_MULTIMODAL_ACCURACY: "true"  # Optional diverse Elasticsearch pages
   VLM_TO_LLM_FALLBACK: "false"
   APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
@@ -410,7 +415,17 @@ For a step-by-step guide with code examples covering collection creation, docume
 - **Image-query reranking is bypassed**: When the user query includes an image,
   use `enable_reranker: False`. Image queries use the multimodal vector
   retrieval path directly.
-- **Single-page retrieval for image queries**: When an image is included in the query, the retrieval results are constrained to content from a single page per document. Multi-page context retrieval is not supported for image-based queries.
+- **Image-page candidate retrieval**: The default behavior expands only the
+  highest-ranked image-search page. Set `ENABLE_MULTIMODAL_ACCURACY=true` to
+  retain up to `APP_RETRIEVER_TOPK` distinct document/page candidates. Existing
+  Elasticsearch, Milvus, and LanceDB collections are automatically backfilled
+  with a canonical source/page identity on first use; subsequent ingestion
+  maintains it. Milvus groups in the vector query. Elasticsearch uses exact
+  vector scoring with field collapse, and LanceDB performs an exhaustive ordered
+  scan, because their KNN APIs otherwise select raw chunks before grouping.
+  Enable this mode on those backends only when that latency tradeoff is
+  acceptable. This stage only broadens candidates; later fusion and verification
+  must decide which candidates can support an answer.
 
 
 ## Related Topics

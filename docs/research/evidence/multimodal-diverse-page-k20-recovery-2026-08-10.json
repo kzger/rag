@@ -1,0 +1,530 @@
+{
+  "dataset": {
+    "version": "jorjin-glasses-weak-query-v1",
+    "manifest": "multimodal_accuracy_cases.json",
+    "assets": [
+      {
+        "path": "../../data/multimodal/Creme_clutch_purse1-small.jpg",
+        "sha256": "f6c76cf9b08d40c403eb2de72f6eb7d7b422cfe5ea42ec742d12cadf087821dd"
+      },
+      {
+        "path": "../../image/j10a-ocr-fixture.png",
+        "sha256": "e9a2bc58e232e13149dab20a98aef2af02fc8704c04c9360b0ab922d5f8fb122"
+      },
+      {
+        "path": "../../image/j7ef-plus-ocr-fixture.png",
+        "sha256": "dc332c37db5670c2a7829d2f0532f7584df86c65f1d714f3f858d85551c35710"
+      },
+      {
+        "path": "../../image/j7ef-plus.jpg",
+        "sha256": "ab014e691c8c5cbed08417341b6a2a313f4cab3e6182febb72689dc69134696b"
+      },
+      {
+        "path": "../../image/logo_max.png",
+        "sha256": "46b409c59488b9a079fc7cac5e3dd505635ddc40b712522535d990befdbcbd20"
+      }
+    ]
+  },
+  "configuration": {
+    "model": "Qwen/Qwen3.6-27B-FP8",
+    "collection": "jorjin_glasses",
+    "vdb_top_k": 100,
+    "reranker_top_k": 20
+  },
+  "metric_definitions": {
+    "candidate_retrieval_hit_at_k": "Fraction of cases with an expected source among the ordered candidates returned by the public /v1/search probe; K is configuration.reranker_top_k.",
+    "verified_identification_accuracy": "Fraction of identifiable cases whose answer contains an annotated accepted identity, contains no annotated forbidden or negation term, and whose /v1/search candidates and /v1/generate citations both contain the expected source. This lexical value is a diagnostic; the adjudicated report replaces it with manual verdicts.",
+    "unsupported_claim_rate": "Case-level lexical diagnostic: fraction of outputs that fail an annotated identity, contain an annotated forbidden claim, or fail to reject a case annotated as no-match. The adjudicated report replaces it with manually reviewed atomic-claim counts.",
+    "low_confidence_rejection_precision_recall": "Precision and recall of configured rejection phrases against cases annotated expected_rejection=true.",
+    "retrieval_latency": "Wall-clock latency of the public /v1/search candidate probe."
+  },
+  "metrics": {
+    "case_count": 8,
+    "candidate_retrieval_hit_at_k": 1.0,
+    "verified_identification_accuracy": 1.0,
+    "unsupported_claim_rate": 0.5,
+    "low_confidence_rejection_precision": 0.0,
+    "low_confidence_rejection_recall": 0.0,
+    "latency_seconds": {
+      "retrieval": {
+        "p50": 0.5496202694484964,
+        "p95": 0.8162277715280652,
+        "mean": 0.6086134785145987
+      },
+      "ttft": {
+        "p50": 2.160745669505559,
+        "p95": 3.11966482498683,
+        "mean": 2.2874754057556856
+      },
+      "total": {
+        "p50": 5.339773518964648,
+        "p95": 8.44075825610198,
+        "mean": 5.6912582472432405
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "j7ef-weak-what",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的文件內容，這是一款由 **JORJIN TECHNOLOGIES（佐臻股份有限公司）** 生產的 **J-Reality J7EF Plus** 增強實境（AR）智慧眼鏡。\n\n以下是關於該產品的詳細資訊：\n\n**1. 產品名稱與定位**\n*   **名稱：** J-Reality J7EF Plus\n*   **定位：** XR 智慧空間的增強型工具，AR 智慧眼鏡解決方案。\n\n**2. 核心規格**\n*   **顯示技術：** 採用 **0.453 吋 Si-OLED** 顯示器，具備 FHD ($1920 \\times 1080$) 解析度。\n*   **顯示類型：** 雙眼透視型顯示器（Binocular See-Through Display）。\n*   **視場角 (FOV)：** $34^\\circ$（相當於 5 公尺處 120 吋畫面）。\n*   **亮度：** 典型值 $1000 \\text{ cd/m}^2$。\n*   **色彩：** 24 位元全彩。\n\n**3. 感測器與鏡頭**\n*   **鏡頭：** 800 萬像素 (8MP)，感光元件為 OV8865，具備自動對焦功能，鏡頭視場角為 $78^\\circ$。\n*   **感測器：** 內建加速度計、陀螺儀、電子羅盤、環境光感測器以及 **TOF 飛時測距感測器**。\n*   **功能：** 支援多點測距與手勢識別。\n\n**4. 介面與連線**\n*   **傳輸介面：** 採用 **USB Type-C**，支援 DisplayPort Alt Mode（影像輸入）、USB 2.0 / 3.0（數據傳輸）以及 PD3.0 供電。\n*   **主機需求：** 需搭配 Android 8.0 或更高版本的系統使用。\n*   **音訊：** 配備 3.5mm 4 極耳機孔（支援 CTIA 標準附麥克風耳機）。\n\n**5. 重量與尺寸**\n*   **頭戴裝置重量：** $127\\text{g} \\pm 15\\text{g}$（不含遮光片）。\n*   **控制盒重量：** $45\\text{g} \\pm 5\\text{g}$（含線材）。\n*   **線材長度：** $109 \\text{ cm} \\pm 1 \\text{ cm}$（含控制盒）。\n\n總結來說，這是一個專為 XR 空間應用設計的高階 AR 眼鏡，強調高解析度的透視顯示、精確的測距感測能力以及透過 USB-C 進行高效能的數據與影像傳輸。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=9",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=9",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "ttft_seconds": 1.7911672838963568,
+      "total_seconds": 9.369772855890915,
+      "search_seconds": 0.4919616130646318,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j7ef-pronoun-confirmation",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的產品規格書與圖片比對，**是的，這張圖片中的產品就是 J-Reality J7EF Plus**。\n\n以下是判斷依據：\n\n1.  **產品名稱與品牌標誌**：\n    *   圖片右下角的黑色鏡腿上印有紅色的 **\"J-REALITY\"** 字樣，以及該品牌的標誌，這與規格書中提到的 \"JORJIN TECHNOLOGIES\" 及 \"J-Reality\" 品牌相符。\n\n2.  **外觀設計特徵**：\n    *   **頭戴式結構**：圖片顯示的是一款黑色的頭戴式 AR 智慧眼鏡，擁有類似護目鏡的框架設計，這與規格書中描述的 \"AR 智慧眼鏡 (AR Glasses Solution)\" 定位一致。\n    *   **光學模組位置**：圖片左側（使用者視角）可以看到透明的顯示光學元件區域，這對應規格書中提到的 \"雙眼透視型顯示器\"。\n    *   **線材連接**：圖片右側有一條黑色的線材延伸出來，這符合規格書中提到的 \"影像輸入：USB Type-C\" 以及 \"線材長度：109 cm\" 的描述（J7EF Plus 是透過線材連接主機進行顯示與供電的）。\n\n3.  **規格參數吻合**：\n    *   規格書指出 J7EF Plus 採用 **0.453 吋 Si-OLED 顯示器**、**FHD 解析度**、**FOV 34°**，並配備 **800 萬像素 (8MP) 鏡頭** 與 **TOF 感測器**。雖然圖片無法直接看到內部元件，但其工業級、堅固的外觀設計（如鏡腿上的紋理與結構）符合其作為 \"XR 智慧空間的增強型工具\" 的產品定位。\n\n因此，這張圖片確實是 **J-Reality J7EF Plus** 的產品實物照或渲染圖。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=2",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=9",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=2",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=9",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "ttft_seconds": 1.556410975055769,
+      "total_seconds": 6.715445427922532,
+      "search_seconds": 0.424698551883921,
+      "forbidden_answer_terms": [
+        "J10A",
+        "不是",
+        "並非"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j7ef-ocr-brand-model",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據圖片上的標籤，可見的型號為 **MODEL J7EF PLUS**。\n\n此外，根據提供的參考資料，該產品的品牌為 **JORJIN TECHNOLOGIES**（佐臻股份有限公司）。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "J10A Sales kit.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=8",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "J10A Sales kit.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=8",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "ttft_seconds": 3.1440871448721737,
+      "total_seconds": 3.5314336579758674,
+      "search_seconds": 0.7303689969703555,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j10a-similar-model-disambiguation",
+      "expected_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "accepted_answer_terms": [
+        "J10A"
+      ],
+      "expected_rejection": false,
+      "answer": "根據您提供的圖片，產品正面貼有一張白色標籤，上面清楚標示著型號為 **MODEL J10A**。\n\n此外，根據提供的背景資料（文件：J10A Sales kit 與 產品問答），**J10A** 是 JORJIN TECHNOLOGIES（佐臻股份有限公司）推出的一款產品，其定位為「專為日常大眾設計的超輕量 AI 智慧眼鏡」，採用高透光率光波導 (Waveguide) 技術。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=9",
+        "產品問答.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "J10A Sales kit.pdf#page=9",
+        "產品問答.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "ttft_seconds": 3.074309088056907,
+      "total_seconds": 4.273841879097745,
+      "search_seconds": 0.8223921090830117,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "logo-weak-what",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的上下文與圖片資訊，這是一個品牌標誌（Logo），具體說明如下：\n\n**1. 品牌名稱：**\n圖片顯示的文字是 **“JORJIN”**。\n\n**2. 公司實體：**\n根據文件內容（如版權聲明 `©JORJIN 2026 Copyright © Jorjin Technologies Inc.` 以及產品規格書標題），這是 **Jorjin Technologies Inc.**（佐臻股份有限公司）的品牌標誌。\n\n**3. 設計特徵：**\n*   **文字：** 使用粗體、現代感強的大寫無襯線字體拼寫 “JORJIN”。\n*   **圖形元素：** 在字母 “R” 和 “D” 之間（或重疊其上）有一個紅色的抽象圖形。這個圖形看起來像是一個風格化的數字 **“5”** 或一個動感的旋渦/筆觸。\n*   **配色：** 標誌主要由深色（黑色或深灰）文字和鮮豔的紅色圖形組成，背景為黑色。\n\n**4. 關聯產品：**\n該品牌專注於開發增強現實（AR）和混合現實（MR）技術產品，包括：\n*   **J7EF Plus / J7M：** 工業級 AR 眼鏡，用於現場巡檢、遠端協作等。\n*   **J9：** 配備眼球追蹤技術的輕量級 AR 眼鏡。\n*   **J10A：** 面向大眾消費市場的超輕量 AI 智慧眼鏡。\n\n總結來說，這是 **Jorjin Technologies（佐臻科技）** 的公司標誌，代表其作為一家開發 AR/MR 智慧眼鏡與相關解決方案的公司身份。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "ttft_seconds": 2.099767195060849,
+      "total_seconds": 6.46099770301953,
+      "search_seconds": 0.5307930519338697,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "logo-pronoun-confirmation",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "是的，這是 **Jorjin Technologies（佐臻股份有限公司）** 的標誌（Logo）。\n\n根據提供的文件內容（特別是《J10A Sales kit》和《JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3》），這個標誌具有以下特徵：\n\n1.  **文字內容**：標誌中間的文字為 **\"JORJIN\"**。\n2.  **設計元素**：在字母 \"R\" 和 \"J\" 之間（或重疊部分）有一個顯著的抽象圖形。在提供的圖片中，這個圖形呈現為紅色，形狀類似一個帶有圓孔的動態漩渦或數字 \"5\" 的變體，這與文件中描述的「JORDIN」或「JORJIN」品牌標識相符（註：部分OCR識別可能將 Jorjin 誤讀為 Jordin，但根據公司全稱 Jorjin Technologies Inc.，正確拼寫應為 Jorjin）。\n3.  **品牌歸屬**：文件多次提到 \"Copyright © Jorjin Technologies Inc. All rights reserved.\" 以及 \"©JORJIN 2026\"，確認了該標誌屬於 **Jorjin Technologies**。\n\n因此，這張圖片確實是 Jorjin 品牌的官方 Logo。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=2",
+        "產品問答.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=2",
+        "產品問答.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "ttft_seconds": 2.2217241439502686,
+      "total_seconds": 5.484394973842427,
+      "search_seconds": 0.5684474869631231,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "consecutive-image-isolation-baseline",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的文件內容與圖片分析，這張圖片顯示的是 **JORJIN**（佐臻股份有限公司）的品牌標誌（Logo）。\n\n具體細節如下：\n*   **文字內容**：圖片中顯示了大寫的英文字母 \"JORJIN\"。\n*   **設計特徵**：字母 \"O\" 被設計成一個紅色的、具有動感的抽象圖形（類似於一個帶有切口的橢圓或火焰形狀），穿插在深灰色的 \"JR\" 和 \"JIN\" 之間。\n*   **品牌關聯**：在提供的文件（如 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3` 和 `J10A Sales kit`）中，多次出現 \"JORJIN\"、\"Jorjin Technologies Inc.\" 以及 \"佐臻股份有限公司\" 的名稱，確認這是該公司的品牌識別標誌。該公司生產包括 J7EF Plus、J9、J10A 等型號的 AR/VR 智慧眼鏡產品。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "產品問答.pdf#page=1",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3"
+      ],
+      "ttft_seconds": 1.8769842919427902,
+      "total_seconds": 4.499027416110039,
+      "search_seconds": 0.8047797160688788,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "no-text-product-no-match",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片，這是一個**白色的女士手提包（或斜挎包）**。\n\n以下是該產品的具體特徵：\n\n*   **材質與顏色**：包身呈現潔白色，材質看起來像是皮革（真皮或人造革），表面具有獨特的**褶皺或壓紋質感**（類似荔枝紋或皺褶皮），賦予其立體感。\n*   **裝飾設計**：\n    *   **金屬花朵扣飾**：包蓋中央有一個醒目的金色花朵形狀的金屬裝飾，花瓣細節豐富，花蕊部分似乎鑲嵌了圓形飾物。\n    *   **刺繡花朵**：包身正面還飾有兩朵較小的白色刺繡花朵，花蕊部分點綴著金色珠飾，與中央的金屬花扣相呼應。\n*   **配件**：上方可以看到金色的金屬鏈條，表明它配備了金屬鏈帶，可以作為肩背或斜挎使用。\n\n總體來說，這是一款設計優雅、帶有復古或浪漫風格的白色鏈條手提包。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=7",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=3",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品問答.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=7",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=8",
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=3",
+        "J10A Sales kit.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "產品問答.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=2",
+        "產品介紹J9 &J7M.pdf#page=1",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "產品問答.pdf#page=1",
+        "產品介紹J9 &J7M.pdf#page=2"
+      ],
+      "ttft_seconds": 2.5353531232103705,
+      "total_seconds": 5.195152064086869,
+      "search_seconds": 0.4954663021489978,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORJIN"
+      ],
+      "error": null
+    }
+  ]
+}

@@ -17,9 +17,11 @@
 Test suite for query rewriting functionality in the RAG server.
 """
 
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from nvidia_rag.rag_server.main import NvidiaRAG
 
 
 class DummyPrompt:
@@ -67,6 +69,7 @@ class DummyVDB:
 
     last_query = None
     last_retrieval_method = None
+    last_diverse_pages = None
 
     def check_collection_exists(self, collection_name: str) -> bool:
         return True
@@ -92,11 +95,18 @@ class DummyVDB:
         return []
 
     def retrieval_image_langchain(
-        self, query, collection_name, vectorstore=None, top_k=None, reranker_top_k=None
-    ):
+        self,
+        query: str,
+        collection_name: str,
+        vectorstore: object | None = None,
+        top_k: int | None = None,
+        reranker_top_k: int | None = None,
+        diverse_pages: bool = False,
+    ) -> list[object]:
         """Called when query contains images (multimodal)."""
         DummyVDB.last_query = query
         DummyVDB.last_retrieval_method = "image"
+        DummyVDB.last_diverse_pages = diverse_pages
         return []
 
 
@@ -509,6 +519,51 @@ async def test_generate_skips_reflection_for_image_query(monkeypatch):
 
     mock_check_relevance.assert_not_awaited()
     assert fake_vdb.last_retrieval_method == "image"
+
+
+@pytest.mark.asyncio
+async def test_generate_enables_diverse_image_page_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The public generate seam passes the feature flag to image retrieval."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    assert "base64" not in rag._safe_log_text(
+        "這是什麼？ data:image/png;base64,current"
+    )
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "這是什麼？"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,current"},
+                },
+            ],
+        }
+    ]
+
+    async def stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
+        yield "ok"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
+        mock_vlm_class.return_value.stream_with_messages = stream
+        await rag.generate(
+            messages=messages,
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+        )
+
+    assert fake_vdb.last_retrieval_method == "image"
+    assert fake_vdb.last_diverse_pages is True
+    assert "data:image" not in caplog.text
+    assert "base64,current" not in caplog.text
 
 
 @pytest.mark.asyncio

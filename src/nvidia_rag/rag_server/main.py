@@ -37,6 +37,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 from collections.abc import AsyncGenerator, Callable, Generator
@@ -1561,6 +1562,7 @@ class NvidiaRAG:
                             ),
                             top_k=top_k,
                             reranker_top_k=reranker_top_k,
+                            diverse_pages=self.config.enable_multimodal_accuracy,
                             # Note: Filter expressions may not be supported for image queries
                             # filter_expr=collection_filter_mapping.get(validated_collections[0], ""),
                             # otel_ctx=otel_ctx,
@@ -1779,8 +1781,8 @@ class NvidiaRAG:
             ) = self._handle_prompt_processing(chat_history, model, "chat_template")
 
             logger.debug("System message: %s", system_message)
-            logger.debug("User message: %s", user_message)
-            logger.debug("Conversation history: %s", conversation_history)
+            logger.debug("User prompt parts: %d", len(user_message))
+            logger.debug("Conversation history entries: %d", len(conversation_history))
             # Prompt template with system message, user message from prompt template
             message = system_message + user_message
 
@@ -2246,6 +2248,15 @@ class NvidiaRAG:
             # Fallback for any other content type
             return str(content) if content is not None else ""
 
+    def _safe_log_text(self, content: Any) -> str:
+        """Return text content with inline image data removed for logging."""
+        return re.sub(
+            r"data:image/[^;\s]+;base64,[A-Za-z0-9+/=_-]+",
+            "[image data redacted]",
+            self._extract_text_from_content(content),
+            flags=re.IGNORECASE,
+        )
+
     def _contains_images(self, content: Any) -> bool:
         """Check if content contains any images.
 
@@ -2462,7 +2473,11 @@ class NvidiaRAG:
                     ErrorCodeMapping.SERVICE_UNAVAILABLE,
                 ) from e
 
-            logger.info("Agentic query rewriting: '%s' → '%s'", query, retriever_query)
+            logger.info(
+                "Agentic query rewriting: '%s' → '%s'",
+                self._safe_log_text(query),
+                self._safe_log_text(retriever_query),
+            )
 
         # --- Build per-request search params ---------------------------------
         search_params = AgenticSearchParams(
@@ -2489,7 +2504,7 @@ class NvidiaRAG:
         logger.info("=" * 60)
         logger.info("PIPELINE MODE: Agentic RAG (LangGraph plan-and-execute)")
         logger.info("=" * 60)
-        logger.info("  - query: '%s'", retriever_query[:200])
+        logger.info("  - query: '%s'", self._safe_log_text(query)[:200])
         logger.info("  - collections: %s", collection_names)
         logger.info(
             "  - enable_reranker: %s, reranker_top_k: %s",
@@ -2762,8 +2777,8 @@ class NvidiaRAG:
                 user_message,
             ) = self._handle_prompt_processing(chat_history, model, "rag_template")
             logger.debug("System message: %s", system_message)
-            logger.debug("User message: %s", user_message)
-            logger.debug("Conversation history: %s", conversation_history)
+            logger.debug("User prompt parts: %d", len(user_message))
+            logger.debug("Conversation history entries: %d", len(conversation_history))
             # for multimoda query only image is used for retrieval
             retriever_query, is_image_query = self._build_retriever_query_from_content(
                 query
@@ -2789,7 +2804,7 @@ class NvidiaRAG:
                     logger.info("Input:")
                     logger.info(
                         "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
+                        self._extract_text_from_content(query)[:200],
                     )
                     logger.info(
                         "  - Chat History Messages: %d",
@@ -3299,7 +3314,7 @@ class NvidiaRAG:
                     logger.info("Retrieval Configuration:")
                     logger.info(
                         "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
+                        self._extract_text_from_content(query)[:200],
                     )
                     logger.info("  - Collections: %s", validated_collections)
                     logger.info("  - VDB Top-K: %d", top_k)
@@ -3441,7 +3456,7 @@ class NvidiaRAG:
                     logger.info("Retrieval Configuration:")
                     logger.info(
                         "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
+                        self._extract_text_from_content(query)[:200],
                     )
                     logger.info(
                         "  - Collection: %s",
@@ -3462,6 +3477,7 @@ class NvidiaRAG:
                             ),
                             top_k=top_k,
                             reranker_top_k=reranker_top_k,
+                            diverse_pages=self.config.enable_multimodal_accuracy,
                             # filter_expr=collection_filter_mapping.get(
                             #     validated_collections[0], ""
                             # ),
@@ -3733,7 +3749,7 @@ class NvidiaRAG:
                     except (OSError, ValueError, ConnectionError) as e:
                         logger.warning(
                             "VLM processing failed for query='%s', collection='%s': %s",
-                            query,
+                            self._extract_text_from_content(query),
                             validated_collections[0] if validated_collections else "",
                             e,
                             exc_info=True,
@@ -3748,7 +3764,7 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.error(
                             "Unexpected error during VLM processing for query='%s', collection='%s': %s",
-                            query,
+                            self._extract_text_from_content(query),
                             validated_collections[0] if validated_collections else "",
                             e,
                             exc_info=True,
@@ -4126,12 +4142,14 @@ class NvidiaRAG:
                 )
 
     def _print_conversation_history(
-        self, conversation_history: list[str] = None, query: str | None = None
+        self,
+        conversation_history: list[tuple[str, Any]] | None = None,
+        query: str | None = None,
     ) -> None:
         if conversation_history is not None:
             for role, content in conversation_history:
                 logger.debug("Role: %s", role)
-                logger.debug("Content: %s\n", content)
+                logger.debug("Content: %s\n", self._safe_log_text(content))
 
     def _normalize_relevance_scores(
         self, documents: list["Document"]

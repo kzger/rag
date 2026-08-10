@@ -75,11 +75,11 @@ from concurrent.futures import Future
 from pathlib import Path
 from typing import Any
 
+import pyarrow as pa
 import requests
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
 from langchain_core.vectorstores import VectorStore
-
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
@@ -92,6 +92,10 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
     SYSTEM_COLLECTIONS,
+)
+from nvidia_rag.utils.vdb.image_page_identity import (
+    IMAGE_PAGE_IDENTITY_FIELD,
+    build_image_page_identity,
 )
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
@@ -185,10 +189,70 @@ class LanceDBVDB(VDBRagIngest):
         self._embedding_model = embedding_model  # alias for consistency with ElasticVDB
         self.hybrid = hybrid
         self.overwrite = overwrite
+        self._page_identity_ready_tables: set[str] = set()
 
         # Track if system collections have been initialized (avoid repeated create calls)
         self._metadata_schema_collection_initialized = False
         self._document_info_collection_initialized = False
+
+    def _ensure_image_page_identity(self, collection_name: str) -> bool:
+        """Add and backfill the scalar source/page identity in a LanceDB table."""
+        if collection_name in self._page_identity_ready_tables:
+            return True
+        try:
+            db = _import_lancedb().connect(self.uri)
+            table = db.open_table(collection_name)
+            arrow_table = table.to_arrow()
+            columns = set(arrow_table.schema.names)
+            if IMAGE_PAGE_IDENTITY_FIELD not in columns:
+                table.add_columns(
+                    pa.field(IMAGE_PAGE_IDENTITY_FIELD, pa.string(), nullable=True)
+                )
+            source_column = (
+                "path"
+                if "path" in columns
+                else "source_id"
+                if "source_id" in columns
+                else None
+            )
+            if source_column is None or "metadata" not in columns:
+                raise ValueError("LanceDB table has no source/metadata columns")
+            updates: set[tuple[str, str, str]] = set()
+            for index in range(arrow_table.num_rows):
+                source_name = arrow_table[source_column][index].as_py()
+                raw_metadata = arrow_table["metadata"][index].as_py()
+                metadata = _parse_nrl_metadata(raw_metadata)
+                page_number = next(
+                    (
+                        metadata[key]
+                        for key in ("page_number", "page_num", "page")
+                        if metadata.get(key) is not None
+                    ),
+                    None,
+                )
+                identity = build_image_page_identity(source_name, page_number)
+                if identity is not None:
+                    updates.add((str(source_name), str(raw_metadata), identity))
+            for source_name, raw_metadata, identity in updates:
+                escaped_source = source_name.replace("'", "''")
+                escaped_metadata = raw_metadata.replace("'", "''")
+                table.update(
+                    where=(
+                        f"{source_column} = '{escaped_source}' AND "
+                        f"metadata = '{escaped_metadata}'"
+                    ),
+                    values={IMAGE_PAGE_IDENTITY_FIELD: identity},
+                )
+        except Exception as exc:
+            logger.error(
+                "Unable to prepare page-level image retrieval for table '%s': %s",
+                collection_name,
+                exc,
+                exc_info=True,
+            )
+            return False
+        self._page_identity_ready_tables.add(collection_name)
+        return True
 
     # ------------------------------------------------------------------
     # collection_name property (required by VDBRag ABC)
@@ -252,14 +316,19 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
         try:
             db.open_table(self._table_name)
-            logger.debug("LanceDB table '%s' already exists; skipping creation.", self._table_name)
+            logger.debug(
+                "LanceDB table '%s' already exists; skipping creation.",
+                self._table_name,
+            )
             return
         except Exception:
             pass
 
         dim = self.config.embeddings.dimensions if self.config else 2048
         schema = lancedb_schema(vector_dim=dim)
-        empty = pa.table({f.name: pa.array([], type=f.type) for f in schema}, schema=schema)
+        empty = pa.table(
+            {f.name: pa.array([], type=f.type) for f in schema}, schema=schema
+        )
         db.create_table(self._table_name, data=empty, schema=schema, mode="create")
         logger.info("Created LanceDB table '%s' at '%s'.", self._table_name, self.uri)
 
@@ -324,7 +393,9 @@ class LanceDBVDB(VDBRagIngest):
                 )
                 return
 
-            dim = infer_vector_dim(cleaned_rows) or (self.config.embeddings.dimensions if self.config else 2048)
+            dim = infer_vector_dim(cleaned_rows) or (
+                self.config.embeddings.dimensions if self.config else 2048
+            )
             schema = lancedb_schema(vector_dim=dim)
 
             db = lancedb_mod.connect(self.uri)
@@ -341,7 +412,9 @@ class LanceDBVDB(VDBRagIngest):
                 table_name=self._table_name,
                 hybrid=self.hybrid,
                 overwrite=False,
-                num_partitions=16 if len(cleaned_rows) > 16 else max(len(cleaned_rows)-1, 1),
+                num_partitions=16
+                if len(cleaned_rows) > 16
+                else max(len(cleaned_rows) - 1, 1),
             )
             create_lancedb_index(table, cfg=cfg)
             logger.info(
@@ -349,6 +422,13 @@ class LanceDBVDB(VDBRagIngest):
                 len(cleaned_rows),
                 self._table_name,
             )
+
+        if getattr(self.config, "enable_multimodal_accuracy", False) is True:
+            self._page_identity_ready_tables.discard(self._table_name)
+            if not self._ensure_image_page_identity(self._table_name):
+                raise RuntimeError(
+                    f"Unable to backfill {IMAGE_PAGE_IDENTITY_FIELD} after LanceDB ingestion"
+                )
 
     def run(self, records: list) -> None:
         """Orchestrate index creation and NRL record ingestion.
@@ -377,13 +457,17 @@ class LanceDBVDB(VDBRagIngest):
         list
             The records that were written (resolved from the Future if needed).
         """
-        logger.info("LanceDBVDB.run_async: creating index for table '%s'.", self._table_name)
+        logger.info(
+            "LanceDBVDB.run_async: creating index for table '%s'.", self._table_name
+        )
         self.create_index()
 
         if isinstance(records, Future):
             records = records.result()
 
-        logger.info("LanceDBVDB.run_async: writing records to table '%s'.", self._table_name)
+        logger.info(
+            "LanceDBVDB.run_async: writing records to table '%s'.", self._table_name
+        )
         self.write_to_index(records)
         return records
 
@@ -436,7 +520,9 @@ class LanceDBVDB(VDBRagIngest):
             pass
 
         schema = lancedb_schema(vector_dim=dimension)
-        empty = pa.table({f.name: pa.array([], type=f.type) for f in schema}, schema=schema)
+        empty = pa.table(
+            {f.name: pa.array([], type=f.type) for f in schema}, schema=schema
+        )
         db.create_table(collection_name, data=empty, schema=schema, mode="create")
         logger.info(
             "Created LanceDB table '%s' (dim=%d) at '%s'.",
@@ -480,7 +566,9 @@ class LanceDBVDB(VDBRagIngest):
                 table = db.open_table(name)
                 num_rows = table.count_rows()
             except Exception as exc:
-                logger.warning("get_collection: failed to open table '%s': %s", name, exc)
+                logger.warning(
+                    "get_collection: failed to open table '%s': %s", name, exc
+                )
                 num_rows = 0
 
             metadata_schema = self.get_metadata_schema(name)
@@ -538,7 +626,9 @@ class LanceDBVDB(VDBRagIngest):
                             "error_message": f"Table '{name}' not found.",
                         }
                     )
-                    logger.warning("LanceDB table '%s' not found; skipping deletion.", name)
+                    logger.warning(
+                        "LanceDB table '%s' not found; skipping deletion.", name
+                    )
             except Exception as exc:
                 failed.append({"collection_name": name, "error_message": str(exc)})
                 logger.error("Failed to delete LanceDB table '%s': %s", name, exc)
@@ -780,7 +870,9 @@ class LanceDBVDB(VDBRagIngest):
                 {"context": lambda input: input["context"]}
             )
 
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -792,7 +884,9 @@ class LanceDBVDB(VDBRagIngest):
                 len(docs),
                 collection_name,
             )
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
 
@@ -856,6 +950,7 @@ class LanceDBVDB(VDBRagIngest):
         source_name: str,
         page_numbers: list[int],
         limit: int = 1000,
+        include_unscoped: bool = False,
     ) -> list[Document]:
         """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
 
@@ -876,6 +971,9 @@ class LanceDBVDB(VDBRagIngest):
             Page numbers to include (matched against the NRL metadata field).
         limit:
             Maximum number of chunks to return.
+        include_unscoped:
+            Preserve legacy behavior by including source-matched chunks that do
+            not carry page metadata. Diverse-page retrieval leaves this disabled.
         """
         if not page_numbers:
             return []
@@ -887,7 +985,11 @@ class LanceDBVDB(VDBRagIngest):
             table = db.open_table(collection_name)
             df = table.to_pandas()
         except Exception as exc:
-            logger.error("retrieve_chunks_by_filter: failed to open table '%s': %s", collection_name, exc)
+            logger.error(
+                "retrieve_chunks_by_filter: failed to open table '%s': %s",
+                collection_name,
+                exc,
+            )
             return []
 
         # Filter by source path using path or source_id column
@@ -919,16 +1021,37 @@ class LanceDBVDB(VDBRagIngest):
             raw_meta = row.get("metadata", "")
             parsed_meta = _parse_nrl_metadata(raw_meta)
 
-            # Try several common field names for page number
-            page_num = (
-                parsed_meta.get("page_number")
-                or parsed_meta.get("page_num")
-                or parsed_meta.get("page")
+            page_num = next(
+                (
+                    parsed_meta[key]
+                    for key in ("page_number", "page_num", "page")
+                    if parsed_meta.get(key) is not None
+                ),
+                None,
             )
 
-            # If no page_number in metadata, include the chunk regardless
-            # (avoids dropping all results for schemas that don't record page_number)
-            if page_num is not None and page_num not in page_numbers_set:
+            if page_num is None:
+                if include_unscoped:
+                    text = (
+                        str(row.get("text", "")) if row.get("text") is not None else ""
+                    )
+                    source_val = row.get("path") or row.get("source_id", source_name)
+                    docs.append(
+                        Document(
+                            page_content=text,
+                            metadata={
+                                "source": source_val,
+                                "content_metadata": parsed_meta,
+                            },
+                        )
+                    )
+                    continue
+                logger.warning(
+                    "Skipping LanceDB chunk for source '%s': page metadata is missing",
+                    source_name,
+                )
+                continue
+            if page_num not in page_numbers_set:
                 continue
 
             text = str(row.get("text", "")) if row.get("text") is not None else ""
@@ -948,6 +1071,7 @@ class LanceDBVDB(VDBRagIngest):
         vectorstore: VectorStore | None = None,
         top_k: int = 10,
         reranker_top_k: int | None = None,
+        diverse_pages: bool = False,
     ) -> list[Document]:
         """Retrieve documents from a collection using an image query.
 
@@ -968,12 +1092,25 @@ class LanceDBVDB(VDBRagIngest):
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
+        if diverse_pages and not self._ensure_image_page_identity(collection_name):
+            return []
+
         try:
             embedding = self._embedding_model.embed_documents([query])
-            scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
-                embedding=embedding[0],
-                k=top_k,
-            )
+            search_k = top_k
+            if diverse_pages:
+                search_k = max(top_k, vectorstore.get_table().count_rows())
+            if diverse_pages:
+                scored = vectorstore.similarity_search_by_vector(
+                    embedding=embedding[0],
+                    k=search_k,
+                    score=True,
+                )
+            else:
+                scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
+                    embedding=embedding[0],
+                    k=search_k,
+                )
             results = [doc for doc, _ in scored]
         except Exception as exc:
             logger.error(
@@ -987,6 +1124,13 @@ class LanceDBVDB(VDBRagIngest):
 
         if not results:
             return []
+
+        if diverse_pages:
+            return self._aggregate_image_page_candidates(
+                scored=scored,
+                collection_name=collection_name,
+                max_pages=final_limit,
+            )
 
         # Extract source and page from the top result
         try:
@@ -1034,7 +1178,36 @@ class LanceDBVDB(VDBRagIngest):
             source_name=source_name,
             page_numbers=page_numbers,
             limit=final_limit,
+            include_unscoped=True,
         )
+
+    def _image_page_identity(self, document: Document) -> tuple[str, int] | None:
+        """Return a source/page identity from LanceDB's NRL metadata shape."""
+        metadata = document.metadata
+        nrl_metadata = metadata.get("metadata", {})
+        if isinstance(nrl_metadata, str):
+            nrl_metadata = _parse_nrl_metadata(nrl_metadata)
+        source_name = (
+            metadata.get("path")
+            or metadata.get("source_id")
+            or nrl_metadata.get("source_path")
+            or nrl_metadata.get("source_name")
+        )
+        page_number = next(
+            (
+                nrl_metadata[key]
+                for key in ("page_number", "page_num", "page")
+                if nrl_metadata.get(key) is not None
+            ),
+            None,
+        )
+        if (
+            not isinstance(source_name, str)
+            or not source_name
+            or not isinstance(page_number, int)
+        ):
+            return None
+        return source_name, page_number
 
     # ------------------------------------------------------------------
     # Metadata Schema Management
@@ -1057,10 +1230,12 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
 
         if DEFAULT_METADATA_SCHEMA_COLLECTION not in db.table_names():
-            schema = pa.schema([
-                pa.field("collection_name", pa.string()),
-                pa.field("metadata_schema", pa.string()),
-            ])
+            schema = pa.schema(
+                [
+                    pa.field("collection_name", pa.string()),
+                    pa.field("metadata_schema", pa.string()),
+                ]
+            )
             empty = pa.table(
                 {
                     "collection_name": pa.array([], type=pa.string()),
@@ -1127,7 +1302,9 @@ class LanceDBVDB(VDBRagIngest):
         new_row = pa.table(
             {
                 "collection_name": pa.array([collection_name], type=pa.string()),
-                "metadata_schema": pa.array([json.dumps(metadata_schema)], type=pa.string()),
+                "metadata_schema": pa.array(
+                    [json.dumps(metadata_schema)], type=pa.string()
+                ),
             }
         )
         table.add(new_row)
@@ -1202,12 +1379,14 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
 
         if DEFAULT_DOCUMENT_INFO_COLLECTION not in db.table_names():
-            schema = pa.schema([
-                pa.field("info_type", pa.string()),
-                pa.field("collection_name", pa.string()),
-                pa.field("document_name", pa.string()),
-                pa.field("info_value", pa.string()),
-            ])
+            schema = pa.schema(
+                [
+                    pa.field("info_type", pa.string()),
+                    pa.field("collection_name", pa.string()),
+                    pa.field("document_name", pa.string()),
+                    pa.field("info_value", pa.string()),
+                ]
+            )
             empty = pa.table(
                 {
                     "info_type": pa.array([], type=pa.string()),
@@ -1563,7 +1742,9 @@ class LanceDBVDB(VDBRagIngest):
                 return result
             table = db.open_table(DEFAULT_DOCUMENT_INFO_COLLECTION)
             df = table.to_pandas()
-            mask = (df["info_type"] == "document") & (df["collection_name"] == collection_name)
+            mask = (df["info_type"] == "document") & (
+                df["collection_name"] == collection_name
+            )
             for _, row in df[mask].iterrows():
                 doc_name = row["document_name"]
                 try:

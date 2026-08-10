@@ -680,8 +680,7 @@ class VLM:
         self, messages: list[MessageDict]
     ) -> list[dict[str, Any]]:
         """
-        Create a redacted, log-safe representation of the messages where any
-        Base64 image data in data URLs is removed.
+        Create a log-safe representation without image URLs or encoded data.
         """
         safe: list[dict[str, Any]] = []
         for m in messages:
@@ -701,23 +700,10 @@ class VLM:
             safe_parts: list[dict[str, Any]] = []
             for p in parts:
                 if isinstance(p, dict) and p.get("type") == "image_url":
-                    url = (p.get("image_url") or {}).get("url", "")
-                    if (
-                        isinstance(url, str)
-                        and url.startswith("data:image/")
-                        and ";base64," in url
-                    ):
-                        redacted_url = re.sub(
-                            r"^data:image/[^;]+;base64,.*$",
-                            "data:image/png;base64,[REDACTED]",
-                            url,
-                        )
-                    else:
-                        redacted_url = url
                     safe_parts.append(
                         {
                             "type": "image_url",
-                            "image_url": {"url": redacted_url},
+                            "image_url": {"url": "<image omitted>"},
                         }
                     )
                 elif isinstance(p, dict) and p.get("type") == "text":
@@ -994,9 +980,15 @@ class VLM:
                         # field when stream_options.include_usage=True. Capture it once we see it.
                         chunk_usage = getattr(chunk, "usage", None)
                         if chunk_usage is not None and token_usage is not None:
-                            token_usage["prompt_tokens"] = getattr(chunk_usage, "prompt_tokens", 0) or 0
-                            token_usage["completion_tokens"] = getattr(chunk_usage, "completion_tokens", 0) or 0
-                            token_usage["total_tokens"] = getattr(chunk_usage, "total_tokens", 0) or 0
+                            token_usage["prompt_tokens"] = (
+                                getattr(chunk_usage, "prompt_tokens", 0) or 0
+                            )
+                            token_usage["completion_tokens"] = (
+                                getattr(chunk_usage, "completion_tokens", 0) or 0
+                            )
+                            token_usage["total_tokens"] = (
+                                getattr(chunk_usage, "total_tokens", 0) or 0
+                            )
                         if not chunk.choices:
                             chunk_count += 1
                             continue

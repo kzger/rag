@@ -88,6 +88,10 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_METADATA_SCHEMA_COLLECTION,
     SYSTEM_COLLECTIONS,
 )
+from nvidia_rag.utils.vdb.image_page_identity import (
+    IMAGE_PAGE_IDENTITY_FIELD,
+    extract_nv_ingest_page_identity,
+)
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
@@ -198,6 +202,7 @@ class MilvusVDB(VDBRagIngest):
                 token=self._get_milvus_token(),
             )
             self._connected = True
+            self._page_identity_ready_collections: set[str] = set()
             logger.debug(f"Connected to Milvus at {self.vdb_endpoint}")
         except Exception as e:
             logger.error(f"Failed to connect to Milvus at {self.vdb_endpoint}: {e}")
@@ -389,6 +394,79 @@ class MilvusVDB(VDBRagIngest):
             password = ""
 
         return f"{username}:{password}" if (username and password) else ""
+
+    def _ensure_image_page_identity(self, collection_name: str) -> bool:
+        """Add and backfill the scalar field used by Milvus grouping search."""
+        if collection_name in self._page_identity_ready_collections:
+            return True
+        iterator = None
+        try:
+            description = self._client.describe_collection(collection_name)
+            fields = description.get("fields", [])
+            field_names = {field.get("name") for field in fields}
+            primary_field = next(
+                (
+                    field.get("name")
+                    for field in fields
+                    if field.get("is_primary") and field.get("name")
+                ),
+                None,
+            )
+            if primary_field is None:
+                raise ValueError("Milvus collection has no primary field")
+            if IMAGE_PAGE_IDENTITY_FIELD not in field_names:
+                self._client.add_collection_field(
+                    collection_name=collection_name,
+                    field_name=IMAGE_PAGE_IDENTITY_FIELD,
+                    data_type=DataType.VARCHAR,
+                    nullable=True,
+                    max_length=4096,
+                )
+            iterator = self._client.query_iterator(
+                collection_name=collection_name,
+                batch_size=500,
+                filter=f"{IMAGE_PAGE_IDENTITY_FIELD} is null",
+                output_fields=[primary_field, "source", "content_metadata"],
+            )
+            while True:
+                batch = iterator.next()
+                if not batch:
+                    break
+                updates = []
+                for entity in batch:
+                    page_identity = extract_nv_ingest_page_identity(entity)
+                    if page_identity is None or primary_field not in entity:
+                        logger.warning(
+                            "Skipping Milvus page-identity backfill for record %r: "
+                            "required source/page metadata is missing",
+                            entity.get(primary_field),
+                        )
+                        continue
+                    updates.append(
+                        {
+                            primary_field: entity[primary_field],
+                            IMAGE_PAGE_IDENTITY_FIELD: page_identity,
+                        }
+                    )
+                if updates:
+                    self._client.upsert(
+                        collection_name=collection_name,
+                        data=updates,
+                        partial_update=True,
+                    )
+        except Exception as exc:
+            logger.error(
+                "Unable to prepare page-level image retrieval for collection '%s': %s",
+                collection_name,
+                exc,
+                exc_info=True,
+            )
+            return False
+        finally:
+            if iterator is not None:
+                iterator.close()
+        self._page_identity_ready_collections.add(collection_name)
+        return True
 
     # ----------------------------------------------------------------------------------------------
     # Implementations of the abstract methods specific to VDBRag class for ingestion
@@ -1337,6 +1415,7 @@ class MilvusVDB(VDBRagIngest):
         vectorstore: LangchainMilvus | None = None,
         top_k: int = 10,
         reranker_top_k: int | None = None,
+        diverse_pages: bool = False,
     ) -> list[Document]:
         """Retrieve documents from a collection using langchain for image query.
 
@@ -1362,6 +1441,9 @@ class MilvusVDB(VDBRagIngest):
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
+        if diverse_pages and not self._ensure_image_page_identity(collection_name):
+            return []
+
         # Use the embedding model provided during initialization
         client = self.embedding_model
 
@@ -1369,9 +1451,15 @@ class MilvusVDB(VDBRagIngest):
 
         try:
             embedding = client.embed_documents([image_input])
+            search_kwargs: dict[str, Any] = {
+                "embedding": embedding[0],
+                "k": top_k,
+            }
+            if diverse_pages:
+                search_kwargs["group_by_field"] = IMAGE_PAGE_IDENTITY_FIELD
+                search_kwargs["expr"] = f"{IMAGE_PAGE_IDENTITY_FIELD} is not null"
             results = vectorstore.similarity_search_with_score_by_vector(
-                embedding=embedding[0],
-                k=top_k,
+                **search_kwargs
             )
         except Exception as e:
             logger.error(
@@ -1382,6 +1470,13 @@ class MilvusVDB(VDBRagIngest):
             return []
         finally:
             release_nvidia_client_response(client)
+
+        if diverse_pages:
+            return self._aggregate_image_page_candidates(
+                scored=results,
+                collection_name=collection_name,
+                max_pages=final_limit,
+            )
 
         try:
             # ToDo: If no page number is provided, use content of same file (txt file)
@@ -1510,7 +1605,13 @@ class MilvusVDB(VDBRagIngest):
             records: List of records to write to Milvus
         """
         self._require_nv_milvus("write_to_index")
-        return self._nv_milvus.write_to_index(records, **kwargs)
+        self._nv_milvus.write_to_index(records, **kwargs)
+        if getattr(self.config, "enable_multimodal_accuracy", False) is True:
+            self._page_identity_ready_collections.discard(self.collection_name)
+            if not self._ensure_image_page_identity(self.collection_name):
+                raise RuntimeError(
+                    f"Unable to backfill {IMAGE_PAGE_IDENTITY_FIELD} after Milvus ingestion"
+                )
 
     def retrieval(self, queries: list, **kwargs) -> list[dict[str, Any]]:
         """

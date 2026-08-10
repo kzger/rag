@@ -1,0 +1,258 @@
+{
+  "dataset": {
+    "version": "jorjin-glasses-weak-query-v1",
+    "manifest": "multimodal_accuracy_cases.json",
+    "assets": [
+      {
+        "path": "../../data/multimodal/Creme_clutch_purse1-small.jpg",
+        "sha256": "f6c76cf9b08d40c403eb2de72f6eb7d7b422cfe5ea42ec742d12cadf087821dd"
+      },
+      {
+        "path": "../../image/j10a-ocr-fixture.png",
+        "sha256": "e9a2bc58e232e13149dab20a98aef2af02fc8704c04c9360b0ab922d5f8fb122"
+      },
+      {
+        "path": "../../image/j7ef-plus-ocr-fixture.png",
+        "sha256": "dc332c37db5670c2a7829d2f0532f7584df86c65f1d714f3f858d85551c35710"
+      },
+      {
+        "path": "../../image/j7ef-plus.jpg",
+        "sha256": "ab014e691c8c5cbed08417341b6a2a313f4cab3e6182febb72689dc69134696b"
+      },
+      {
+        "path": "../../image/logo_max.png",
+        "sha256": "46b409c59488b9a079fc7cac5e3dd505635ddc40b712522535d990befdbcbd20"
+      }
+    ]
+  },
+  "configuration": {
+    "model": "Qwen/Qwen3.6-27B-FP8",
+    "collection": "jorjin_glasses",
+    "vdb_top_k": 100,
+    "reranker_top_k": 5
+  },
+  "metric_definitions": {
+    "candidate_retrieval_hit_at_k": "Fraction of cases with an expected source among the ordered candidates returned by the public /v1/search probe; K is configuration.reranker_top_k.",
+    "verified_identification_accuracy": "Fraction of identifiable cases whose answer contains an annotated accepted identity, contains no annotated forbidden or negation term, and whose /v1/search candidates and /v1/generate citations both contain the expected source. This lexical value is a diagnostic; the adjudicated report replaces it with manual verdicts.",
+    "unsupported_claim_rate": "Case-level lexical diagnostic: fraction of outputs that fail an annotated identity, contain an annotated forbidden claim, or fail to reject a case annotated as no-match. The adjudicated report replaces it with manually reviewed atomic-claim counts.",
+    "low_confidence_rejection_precision_recall": "Precision and recall of configured rejection phrases against cases annotated expected_rejection=true.",
+    "retrieval_latency": "Wall-clock latency of the public /v1/search candidate probe."
+  },
+  "metrics": {
+    "case_count": 8,
+    "candidate_retrieval_hit_at_k": 0.75,
+    "verified_identification_accuracy": 0.75,
+    "unsupported_claim_rate": 0.625,
+    "low_confidence_rejection_precision": 0.0,
+    "low_confidence_rejection_recall": 0.0,
+    "latency_seconds": {
+      "retrieval": {
+        "p50": 0.36769704101607203,
+        "p95": 0.5424980174284428,
+        "mean": 0.3847155336115975
+      },
+      "ttft": {
+        "p50": 1.1695125249680132,
+        "p95": 1.8512829856830648,
+        "mean": 1.1841898084967397
+      },
+      "total": {
+        "p50": 3.4367480244254693,
+        "p95": 5.095485586265568,
+        "mean": 3.625020605599275
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "j7ef-weak-what",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片和文檔資訊，這是一個 **JREALITY（捷視創見）J7EF Plus** 的虛擬實境（VR）頭顯設備及其配件。\n\n以下是詳細說明：\n\n1.  **第一張圖片（頭帶）：**\n    *   這是一條專為 VR 頭顯設計的調整式頭帶（Head Strap）。\n    *   文檔標題明確指出這是「J7EF Plus」。\n    *   雖然文字描述中提到了 \"Sprint\" 品牌，但根據產品型號 J7EF Plus，這通常是 JREALITY 公司生產的配件。頭帶設計包含多個調整孔和扣環，用於確保佩戴舒適和穩固。\n\n2.  **第二張圖片（主機）：**\n    *   這是 J7EF Plus 的 VR 頭顯主機。\n    *   設備呈黑色，具有類似眼鏡或護目鏡的形狀。\n    *   機身側面印有紅色的 **JREALITY** 品牌標誌。\n    *   這是一款混合實境（MR）或虛擬實境（VR）眼鏡，通常用於提供沉浸式的視覺體驗。\n\n**總結：**\n這兩張圖片展示的是 **JREALITY J7EF Plus** 虛擬實境眼鏡系統，包含其主機和配套的舒適型頭帶。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 1.2450820149388164,
+      "total_seconds": 4.69408240984194,
+      "search_seconds": 0.25383926392532885,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j7ef-pronoun-confirmation",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據您提供的圖片和文件內容，**是的，這是相關的產品配件。**\n\n具體說明如下：\n\n1.  **產品名稱對應**：\n    您提供的文件標題為 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3`，且圖片下方標註了「圖 1: J7EF Plus」。這表明該文件是關於 **J7EF Plus** 這款產品的規格說明。\n\n2.  **圖片內容分析**：\n    *   **第一張圖（您上傳的第一張）**：顯示了一個灰色的頭戴支架（Head Strap），上面有調整孔和緩衝墊。這是虛擬實境（VR）或擴增實境（AR）眼鏡常見的可替換式頭戴裝置，用於將眼鏡固定在頭部。\n    *   **第二張圖（您上傳的第二張）**：顯示了一個黑色的頭戴支架，側面印有紅色的 **「JREALITY」** 品牌標誌。J7EF Plus 正是由 JORJIN TECHNOLOGIES（JREALITY 的母公司或相關品牌）所推出的 AR 眼鏡產品。這個黑色支架看起來是 J7EF Plus 的原廠或專用頭戴支架。\n\n3.  **結論**：\n    您詢問「是這個嗎？」，如果您是想確認**這是否是 J7EF Plus 的頭戴支架**，那麼答案是**肯定的**。第二張圖中帶有 JREALITY 標誌的黑色支架，極大概率就是 J7EF Plus 產品規格中提到的配件之一。\n\n因此，這兩張圖片都展示了 **J7EF Plus AR 眼鏡的頭戴支架配件**，符合文件主題。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 1.09394303499721,
+      "total_seconds": 5.311625758185983,
+      "search_seconds": 0.3610795431304723,
+      "forbidden_answer_terms": [
+        "J10A",
+        "不是",
+        "並非"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j7ef-ocr-brand-model",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "expected_rejection": false,
+      "answer": "根據圖片上的標籤文字，可見的型號為 **J7EF PLUS**。\n\n具體資訊如下：\n*   **型號**：J7EF PLUS（標籤上完整顯示為 \"MODEL J7EF PLUS\"）\n*   **品牌**：雖然圖片正面標籤未直接顯示品牌名稱，但根據提供的檔案名稱 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3` 以及參考資料中的內容，該產品的品牌為 **JORJIN TECHNOLOGIES**。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 1.6143254609778523,
+      "total_seconds": 2.85457516182214,
+      "search_seconds": 0.4735833969898522,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "j10a-similar-model-disambiguation",
+      "expected_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "accepted_answer_terms": [
+        "J10A"
+      ],
+      "expected_rejection": false,
+      "answer": "這個產品的型號是 **J10A**。\n\n根據您提供的圖片，在黑色 VR 頭顯的正面有一個白色的標籤，上面清楚地標示著「**MODEL J10A**」。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 1.9788754989858717,
+      "total_seconds": 2.4294013450853527,
+      "search_seconds": 0.5796058899722993,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "logo-weak-what",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片和文字描述，這是一個名為 **「JORDIN」** 的品牌標誌（Logo）。\n\n以下是該標誌的具體特徵：\n\n*   **文字內容**：標誌的主體是英文單字 **\"JORDIN\"**，採用粗體、無襯線的字體設計。\n*   **圖形元素**：在文字的中間部分（覆蓋在字母 \"R\" 和 \"D\" 之上），有一個動態的抽象圖形。這個圖形看起來像是一個傾斜的數字 **\"5\"** 或者一個流暢的筆觸（swoosh），為整體設計增添了動感和科技感。\n*   **配色方案**：\n    *   **背景**：鮮豔的橙色（Vibrant Orange），通常代表熱情、創意或自信。\n    *   **前景**：黑色（Black），用於文字和圖形，增添穩重感和專業度。\n*   **風格**：整體設計簡潔、現代且極簡，常見於科技公司、媒體公司或生活風格品牌的視覺識別系統中。\n\n總結來說，這是 **JORDIN** 品牌的視覺標誌，透過黑橙撞色與動態圖形來傳達活力與專業的印象。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 0.7198493019677699,
+      "total_seconds": 3.8267804509960115,
+      "search_seconds": 0.4046962361317128,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "logo-pronoun-confirmation",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "是的，這是正確的。\n\n根據您提供的第二張圖片和文字描述，這是一個 **JORDIN** 的品牌標誌（Logo）。\n\n**圖片特徵分析：**\n*   **文字：** 標誌包含粗體的黑色大寫字母 “JORDIN”。\n*   **圖形元素：** 在字母 “R” 和 “D” 之間有一個顯眼的紅色抽象圖形，形狀像是一個帶有圓孔的數字 “5” 或旋渦。\n*   **配色：** 主要使用黑色（字體）和紅色（圖形），與第一張圖片描述的“橙色背景”版本不同，這是一個深色背景的版本，但核心設計元素（字體和紅色圖形）是一致的。\n\n這個標誌符合您提供的描述中提到的 “JORDIN” 字樣以及那個 “像數字 5 或 swoosh 的抽象圖形”。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 0.7491012210957706,
+      "total_seconds": 3.0102036700118333,
+      "search_seconds": 0.3361084428615868,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "consecutive-image-isolation-baseline",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據您提供的圖片，這是一個品牌標誌（Logo）。\n\n具體細節如下：\n- **品牌名稱**：標誌上的文字為 **“JORDIN”**，採用深灰色的無襯線字體。\n- **圖形元素**：在字母 “R” 和 “D” 之間，有一個顯眼的紅色抽象圖形。這個圖形由兩個對稱的紅色塊組成，中間夾著一個黑色的橢圓形（或類似眼睛/鏡頭的形狀），看起來像是一個風格化的數字 “8” 或是一個科技感的符號。\n- **設計風格**：整體設計簡潔、現代，紅色與深灰色的搭配突出了專業感和科技感。\n\n這與您第一張圖片中描述的 JORDIN 品牌標誌（橙色背景、黑色文字、帶有類似 “5” 的 swoosh 圖形）屬於同一品牌，但使用了不同的配色方案（這裡是紅/黑/灰，而非橙/黑）和略有不同的圖形設計。這可能是該品牌在不同產品線或市場推廣中使用的變體標誌。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 0.77023064205423,
+      "total_seconds": 3.5113274538889527,
+      "search_seconds": 0.37431453890167177,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "no-text-product-no-match",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片，這是一個**白色的女士手提包（或肩背包）**。\n\n以下是該產品的具體特徵：\n\n1.  **材質與紋理**：包包表面呈現出白色的皮革質感，並採用了精緻的**壓花工藝**，圖案為浮雕式的**花卉（花朵）**造型，增加了立體感和奢華感。\n2.  **金屬裝飾**：包蓋前方有一個醒目的**金色金屬花朵扣飾**，中心似乎鑲嵌著一顆珍珠或寶石，非常華麗。此外，包身上的花朵縫線處也有金色的珠飾點綴。\n3.  **背帶設計**：上方可以看到金色的鏈條與皮革相間的肩帶，顯示這可能是一款鏈條包。\n\n總體來說，這是一款設計優雅、帶有復古或奢華風格的白色花卉壓紋鏈條包。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 1.302111292956397,
+      "total_seconds": 3.362168594961986,
+      "search_seconds": 0.2944969569798559,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORJIN"
+      ],
+      "error": null
+    }
+  ]
+}

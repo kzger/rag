@@ -1406,7 +1406,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                     sanitized_content.append(
                         {
                             "type": "image_url",
-                            "image_url": "<base64 image data omitted>",
+                            "image_url": "<image omitted>",
                         }
                     )
                 elif hasattr(item, "type") and item.type == "image":
@@ -1414,7 +1414,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                     sanitized_content.append(
                         {
                             "type": "image",
-                            "image_url": "<base64 image data omitted>",
+                            "image_url": "<image omitted>",
                         }
                     )
                 else:

@@ -28,7 +28,6 @@ import pyarrow as pa
 import pytest
 import requests
 from langchain_core.documents import Document
-
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
@@ -450,12 +449,71 @@ class TestRetrieval(unittest.TestCase):
         assert len(docs) == 1
         assert docs[0].page_content == "chunk"
 
+    @patch("nvidia_rag.utils.vdb.lancedb.lancedb_vdb._import_lancedb")
+    def test_retrieve_chunks_by_filter_keeps_page_zero_and_skips_unscoped_chunks(
+        self,
+        mock_imp: MagicMock,
+    ) -> None:
+        df = pd.DataFrame(
+            {
+                "path": ["/doc.pdf", "/doc.pdf", "/doc.pdf"],
+                "text": ["page zero", "missing page", "page one"],
+                "metadata": ["{'page_number': 0}", "{}", "{'page_number': 1}"],
+            }
+        )
+        mock_table = MagicMock()
+        mock_table.to_pandas.return_value = df
+        mock_db = MagicMock()
+        mock_db.open_table.return_value = mock_table
+        mock_imp.return_value.connect.return_value = mock_db
+
+        docs = LanceDBVDB("t", "/x").retrieve_chunks_by_filter(
+            "c", "/doc.pdf", [0], limit=10
+        )
+
+        assert [doc.page_content for doc in docs] == ["page zero"]
+
+        legacy_docs = LanceDBVDB("t", "/x").retrieve_chunks_by_filter(
+            "c", "/doc.pdf", [0], limit=10, include_unscoped=True
+        )
+        assert [doc.page_content for doc in legacy_docs] == [
+            "page zero",
+            "missing page",
+        ]
+
+    @patch("nvidia_rag.utils.vdb.lancedb.lancedb_vdb._import_lancedb")
+    def test_ensure_image_page_identity_adds_and_backfills_column(
+        self,
+        mock_imp: MagicMock,
+    ) -> None:
+        table = MagicMock()
+        table.to_arrow.return_value = pa.table(
+            {
+                "path": ["/doc.pdf"],
+                "metadata": ["{'page_number': 0}"],
+            }
+        )
+        db = MagicMock()
+        db.open_table.return_value = table
+        mock_imp.return_value.connect.return_value = db
+        vdb = LanceDBVDB("t", "/x")
+
+        assert vdb._ensure_image_page_identity("c") is True
+
+        table.add_columns.assert_called_once()
+        table.update.assert_called_once_with(
+            where="path = '/doc.pdf' AND metadata = '{''page_number'': 0}'",
+            values={"image_page_identity": "/doc.pdf#page=0"},
+        )
+
     def test_retrieval_image_langchain_embedding_error_returns_empty(self) -> None:
         vdb = LanceDBVDB("t", "/x")
         emb = MagicMock()
         emb.embed_documents.side_effect = ValueError("bad")
         vdb._embedding_model = emb
+        vdb._ensure_image_page_identity = MagicMock(return_value=True)
         mock_vs = MagicMock()
+        mock_vs.get_table.return_value.count_rows.return_value = 9
         out = vdb.retrieval_image_langchain("img", "coll", vectorstore=mock_vs)
         assert out == []
 
@@ -468,6 +526,7 @@ class TestRetrieval(unittest.TestCase):
         emb = MagicMock()
         emb.embed_documents.return_value = [[0.1, 0.2]]
         vdb._embedding_model = emb
+        vdb._ensure_image_page_identity = MagicMock(return_value=True)
 
         top_doc = Document(
             page_content="x",
@@ -486,6 +545,48 @@ class TestRetrieval(unittest.TestCase):
         call_kw = mock_filter.call_args[1]
         assert call_kw["source_name"] == "/a/b.pdf"
         assert call_kw["page_numbers"] == [5]
+
+    @patch.object(LanceDBVDB, "_aggregate_image_page_candidates")
+    def test_retrieval_image_langchain_aggregates_diverse_pages(
+        self,
+        mock_aggregate: MagicMock,
+    ) -> None:
+        vdb = LanceDBVDB("t", "/x")
+        emb = MagicMock()
+        emb.embed_documents.return_value = [[0.1, 0.2]]
+        vdb._embedding_model = emb
+        vdb._ensure_image_page_identity = MagicMock(return_value=True)
+        scored = [
+            (
+                Document(
+                    page_content="x",
+                    metadata={"path": "/a.pdf", "metadata": {"page_number": 1}},
+                ),
+                0.9,
+            )
+        ]
+        mock_vs = MagicMock()
+        mock_vs.get_table.return_value.count_rows.return_value = 9
+        mock_vs.similarity_search_by_vector.return_value = scored
+        mock_aggregate.return_value = [scored[0][0]]
+
+        result = vdb.retrieval_image_langchain(
+            "img",
+            "coll",
+            vectorstore=mock_vs,
+            top_k=4,
+            reranker_top_k=3,
+            diverse_pages=True,
+        )
+
+        assert result == [scored[0][0]]
+        assert mock_vs.similarity_search_by_vector.call_args.kwargs["k"] == 9
+        assert mock_vs.similarity_search_by_vector.call_args.kwargs["score"] is True
+        mock_aggregate.assert_called_once_with(
+            scored=scored,
+            collection_name="coll",
+            max_pages=3,
+        )
 
 
 class TestMetadataAndCatalog(unittest.TestCase):

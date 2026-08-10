@@ -24,12 +24,11 @@ import pandas as pd
 import pytest
 import requests
 from langchain_core.documents import Document
-from opentelemetry import context as otel_context
-from pydantic import SecretStr
-
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.vdb.elasticsearch import es_queries
 from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
+from opentelemetry import context as otel_context
+from pydantic import SecretStr
 
 
 class TestElasticVDB(unittest.TestCase):
@@ -105,7 +104,6 @@ class TestElasticVDB(unittest.TestCase):
             csv_file_path=self.csv_file_path,
             config=mock_config,
         )
-
         # Assertions
         self.assertEqual(elastic_vdb.index_name, self.index_name)
         self.assertEqual(elastic_vdb.es_url, self.es_url)
@@ -1704,6 +1702,150 @@ class TestElasticVDB(unittest.TestCase):
         # collection_name propagated
         for doc in result:
             self.assertEqual(doc.metadata["collection_name"], "test_collection")
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.vdb_base.logger")
+    def test_retrieval_image_langchain_returns_ranked_unique_page_candidates(
+        self, mock_logger: Mock, mock_vector_store: Mock, mock_elasticsearch: Mock
+    ) -> None:
+        """Diverse retrieval aggregates chunks without letting duplicates use Top-K."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = "dense"
+        mock_elasticsearch.return_value = Mock()
+        mock_embedding_model = Mock()
+        mock_embedding_model.embed_documents.return_value = [[0.5]]
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=mock_embedding_model,
+            config=mock_config,
+        )
+        elastic_vdb._es_connection.count.side_effect = [
+            {"count": 1},
+            {"count": 0},
+        ]
+
+        def hit(source: str | None, page: int | None, text: str) -> Document:
+            metadata = {}
+            if source is not None:
+                metadata["source"] = {"source_name": source}
+            if page is not None:
+                metadata["content_metadata"] = {"page_number": page}
+            return Document(page_content=text, metadata=metadata)
+
+        mock_vectorstore = Mock()
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (hit("manual-a.pdf", 3, "image A"), 0.91),
+            (hit("manual-a.pdf", 3, "duplicate A"), 0.89),
+            (hit(None, 7, "invalid"), 0.88),
+            (hit("bad-score.pdf", 8, "invalid score"), None),
+            (hit("bad-chunk.pdf", 9, "invalid chunk"), 0.85),
+            (hit("manual-b.pdf", 4, "image B"), 0.83),
+        ]
+
+        chunks = {
+            "manual-a.pdf": [
+                hit("manual-a.pdf", 3, "A text"),
+                hit("manual-a.pdf", 3, "A table"),
+            ],
+            "manual-b.pdf": [hit("manual-b.pdf", 4, "B text")],
+            "bad-chunk.pdf": [
+                Document(
+                    page_content="bad",
+                    metadata={"content_metadata": "not-a-mapping"},
+                )
+            ],
+        }
+
+        def retrieve(
+            collection_name: str,
+            source_name: str,
+            page_numbers: list[int],
+            limit: int,
+        ) -> list[Document]:
+            assert collection_name == "collection"
+            assert limit == 1000
+            return chunks[source_name]
+
+        elastic_vdb.retrieve_chunks_by_filter = retrieve
+
+        result = elastic_vdb.retrieval_image_langchain(
+            query="data:image/png;base64,secret",
+            collection_name="collection",
+            vectorstore=mock_vectorstore,
+            top_k=6,
+            reranker_top_k=2,
+            diverse_pages=True,
+        )
+
+        self.assertEqual(
+            [doc.page_content for doc in result], ["A text\n\nA table", "B text"]
+        )
+        self.assertEqual(
+            [doc.metadata["image_retrieval"]["raw_score"] for doc in result],
+            [0.91, 0.83],
+        )
+        self.assertEqual(
+            [doc.metadata["image_retrieval"]["chunk_count"] for doc in result],
+            [2, 1],
+        )
+        self.assertEqual(
+            [len(doc.metadata["image_retrieval"]["chunks"]) for doc in result],
+            [2, 1],
+        )
+        self.assertEqual(
+            [doc.metadata["content_metadata"]["page_number"] for doc in result],
+            [3, 4],
+        )
+        mock_logger.warning.assert_any_call(
+            "Skipping image retrieval result at rank %d: required source/page metadata is missing",
+            3,
+        )
+        mock_logger.warning.assert_any_call(
+            "Skipping image retrieval result at rank %d: raw similarity score is missing or invalid",
+            4,
+        )
+        mock_logger.warning.assert_any_call(
+            "Skipping image retrieval result at rank %d: no chunks have valid metadata",
+            5,
+        )
+        search_kwargs = mock_vectorstore.similarity_search_by_vector_with_relevance_scores.call_args.kwargs
+        self.assertEqual(search_kwargs["k"], 6)
+        custom_query = search_kwargs["custom_query"]
+        query_body = {
+            "knn": {
+                "field": "vector",
+                "query_vector": [0.5],
+                "k": 6,
+                "num_candidates": 6,
+            }
+        }
+        diversified_query = custom_query(query_body, None)
+        self.assertNotIn("knn", diversified_query)
+        self.assertEqual(
+            diversified_query["collapse"],
+            {"field": "metadata.image_page_identity"},
+        )
+        self.assertEqual(
+            diversified_query["query"]["script_score"]["query"],
+            {
+                "bool": {
+                    "filter": [{"exists": {"field": "metadata.image_page_identity"}}]
+                }
+            },
+        )
+        self.assertEqual(
+            diversified_query["query"]["script_score"]["script"]["params"],
+            {"query_vector": [0.5], "vector_field": "vector"},
+        )
+        elastic_vdb._es_connection.indices.put_mapping.assert_called_once()
+        elastic_vdb._es_connection.update_by_query.assert_called_once()
+        warning_text = " ".join(
+            str(warning_call) for warning_call in mock_logger.warning.call_args_list
+        )
+        self.assertNotIn("secret", warning_text)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")

@@ -101,6 +101,10 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_unique_sources_query,
     get_weighted_hybrid_custom_query,
 )
+from nvidia_rag.utils.vdb.image_page_identity import (
+    IMAGE_PAGE_IDENTITY_FIELD,
+    extract_nv_ingest_page_identity,
+)
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
@@ -203,6 +207,7 @@ class ElasticVDB(VDBRagIngest):
         self._document_info_collection_initialized = False
         self._embedding_model = embedding_model
         self.hybrid = hybrid
+        self._page_identity_ready_indexes: set[str] = set()
 
         # Metadata fields specific to NV-Ingest Client
         self.meta_dataframe = meta_dataframe
@@ -218,6 +223,81 @@ class ElasticVDB(VDBRagIngest):
         )
 
         self._repair_stale_ingest_refresh_settings()
+
+    def _ensure_image_page_identity(self, index_name: str) -> bool:
+        """Add and backfill the scalar field used for page-level result collapse."""
+        if index_name in self._page_identity_ready_indexes:
+            return True
+        try:
+            self._es_connection.indices.put_mapping(
+                index=index_name,
+                properties={
+                    "metadata": {
+                        "properties": {
+                            IMAGE_PAGE_IDENTITY_FIELD: {
+                                "type": "keyword",
+                                "ignore_above": 4096,
+                            }
+                        }
+                    }
+                },
+            )
+            missing_query = {
+                "bool": {
+                    "must_not": {
+                        "exists": {"field": f"metadata.{IMAGE_PAGE_IDENTITY_FIELD}"}
+                    }
+                }
+            }
+            missing_count = int(
+                self._es_connection.count(index=index_name, query=missing_query).get(
+                    "count", 0
+                )
+            )
+            if missing_count:
+                self._es_connection.update_by_query(
+                    index=index_name,
+                    conflicts="proceed",
+                    refresh=True,
+                    query=missing_query,
+                    script={
+                        "lang": "painless",
+                        "source": (
+                            "if (ctx._source.metadata != null "
+                            "&& ctx._source.metadata.source != null "
+                            "&& ctx._source.metadata.source.source_name instanceof String "
+                            "&& ctx._source.metadata.content_metadata != null "
+                            "&& ctx._source.metadata.content_metadata.page_number instanceof Number) { "
+                            "def src = ctx._source.metadata.source.source_name; "
+                            "def page = ctx._source.metadata.content_metadata.page_number; "
+                            f"ctx._source.metadata.{IMAGE_PAGE_IDENTITY_FIELD} = "
+                            "src + '#page=' + page; }"
+                        ),
+                    },
+                    wait_for_completion=True,
+                )
+                unresolved_count = int(
+                    self._es_connection.count(
+                        index=index_name, query=missing_query
+                    ).get("count", 0)
+                )
+                if unresolved_count:
+                    logger.warning(
+                        "Excluded %d records from page-level image retrieval in "
+                        "index '%s' because source/page metadata is missing",
+                        unresolved_count,
+                        index_name,
+                    )
+        except Exception as exc:
+            logger.error(
+                "Unable to prepare page-level image retrieval for index '%s': %s",
+                index_name,
+                exc,
+                exc_info=True,
+            )
+            return False
+        self._page_identity_ready_indexes.add(index_name)
+        return True
 
     def close(self) -> None:
         """Release HTTP and transport resources held by this VDB operator.
@@ -371,12 +451,15 @@ class ElasticVDB(VDBRagIngest):
         for cleaned_record in cleaned_records:
             texts.append(cleaned_record.get("text"))
             embeddings.append(cleaned_record.get("vector"))
-            metadatas.append(
-                {
-                    "source": cleaned_record.get("source"),
-                    "content_metadata": cleaned_record.get("content_metadata"),
-                }
-            )
+            metadata = {
+                "source": cleaned_record.get("source"),
+                "content_metadata": cleaned_record.get("content_metadata"),
+            }
+            if getattr(self.config, "enable_multimodal_accuracy", False) is True:
+                page_identity = extract_nv_ingest_page_identity(metadata)
+                if page_identity is not None:
+                    metadata[IMAGE_PAGE_IDENTITY_FIELD] = page_identity
+            metadatas.append(metadata)
 
         total_records = len(texts)
         batch_size = 200
@@ -497,9 +580,9 @@ class ElasticVDB(VDBRagIngest):
 
         except ImportError:
             status["status"] = ServiceStatus.ERROR.value
-            status["error"] = (
-                "Elasticsearch client not available (elasticsearch library not installed)"
-            )
+            status[
+                "error"
+            ] = "Elasticsearch client not available (elasticsearch library not installed)"
         except Exception as e:
             status["status"] = ServiceStatus.ERROR.value
             status["error"] = str(e)
@@ -1236,6 +1319,7 @@ class ElasticVDB(VDBRagIngest):
         vectorstore: ElasticsearchStore | None = None,
         top_k: int = 10,
         reranker_top_k: int | None = None,
+        diverse_pages: bool = False,
     ) -> list[Document]:
         """Retrieve documents from a collection using an image query.
 
@@ -1250,6 +1334,8 @@ class ElasticVDB(VDBRagIngest):
             top_k: Number of results for initial similarity search (VDB top_k)
             reranker_top_k: Final number of documents to return. If None,
                            defaults to top_k.
+            diverse_pages: Return multiple unique page candidates instead of only
+                           expanding the highest-ranked page.
 
         Note: Uses the embedding_model provided during initialization.
         """
@@ -1259,7 +1345,10 @@ class ElasticVDB(VDBRagIngest):
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
-        def ensure_num_candidates(
+        if diverse_pages and not self._ensure_image_page_identity(collection_name):
+            return []
+
+        def build_image_search_query(
             query_body: dict[str, Any], _: str | None
         ) -> dict[str, Any]:
             """Keep Elasticsearch's candidate pool large enough for image search."""
@@ -1268,6 +1357,48 @@ class ElasticVDB(VDBRagIngest):
                 knn_query["num_candidates"] = max(
                     top_k, knn_query.get("num_candidates", 0)
                 )
+            if diverse_pages:
+                if not isinstance(knn_query, dict):
+                    raise ValueError(
+                        "Elasticsearch image search did not build a KNN query"
+                    )
+                identity_filter = {
+                    "exists": {"field": f"metadata.{IMAGE_PAGE_IDENTITY_FIELD}"}
+                }
+                existing_filter = knn_query.get("filter")
+                filters = [identity_filter]
+                if isinstance(existing_filter, list):
+                    filters = [*existing_filter, identity_filter]
+                elif existing_filter is not None:
+                    filters = [existing_filter, identity_filter]
+                query_vector = knn_query.get("query_vector")
+                vector_field = knn_query.get("field")
+                if not isinstance(query_vector, list) or not isinstance(
+                    vector_field, str
+                ):
+                    raise ValueError("Elasticsearch KNN query is missing its vector")
+                # Top-level KNN selects K raw chunks before field collapse, so
+                # duplicate chunks can still crowd out a page. Exact scoring plus
+                # collapse lets `size=K` select K distinct page identities.
+                query_body.pop("knn", None)
+                query_body["query"] = {
+                    "script_score": {
+                        "query": {"bool": {"filter": filters}},
+                        "script": {
+                            "source": (
+                                "cosineSimilarity(params.query_vector, "
+                                "params.vector_field) + 1.0"
+                            ),
+                            "params": {
+                                "query_vector": query_vector,
+                                "vector_field": vector_field,
+                            },
+                        },
+                    }
+                }
+                query_body["collapse"] = {
+                    "field": f"metadata.{IMAGE_PAGE_IDENTITY_FIELD}"
+                }
             return query_body
 
         try:
@@ -1275,9 +1406,8 @@ class ElasticVDB(VDBRagIngest):
             scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
                 embedding=embedding[0],
                 k=top_k,
-                custom_query=ensure_num_candidates,
+                custom_query=build_image_search_query,
             )
-            results = [doc for doc, _ in scored]
         except Exception as e:
             logger.error(
                 "Error generating embeddings or performing similarity search: %s",
@@ -1288,8 +1418,17 @@ class ElasticVDB(VDBRagIngest):
         finally:
             release_nvidia_client_response(self._embedding_model)
 
-        if not results:
+        if not scored:
             return []
+
+        if diverse_pages:
+            return self._aggregate_image_page_candidates(
+                scored=scored,
+                collection_name=collection_name,
+                max_pages=final_limit,
+            )
+
+        results = [doc for doc, _ in scored]
 
         try:
             metadata = results[0].metadata
