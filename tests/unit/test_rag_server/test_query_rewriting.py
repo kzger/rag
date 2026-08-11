@@ -18,6 +18,7 @@ Test suite for query rewriting functionality in the RAG server.
 """
 
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -564,6 +565,242 @@ async def test_generate_enables_diverse_image_page_candidates(
     assert fake_vdb.last_diverse_pages is True
     assert "data:image" not in caplog.text
     assert "base64,current" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("assistant_summary", "expects_summary"),
+    [
+        ("先前圖片辨識為 J7EF Plus。", True),
+        (None, False),
+    ],
+)
+async def test_generate_isolates_previous_image_from_current_multimodal_turn(
+    monkeypatch: pytest.MonkeyPatch,
+    assistant_summary: str | None,
+    expects_summary: bool,
+) -> None:
+    """Only the current image crosses retrieval and VLM service boundaries."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "這是什麼？"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,j7ef-previous"},
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,j7ef-previous-2"},
+                },
+            ],
+        },
+    ]
+    if assistant_summary is not None:
+        messages.append({"role": "assistant", "content": assistant_summary})
+    else:
+        messages[0]["content"] = messages[0]["content"][1:]
+    messages.append(
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "這又是什麼？"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,logo-current"},
+                },
+            ],
+        }
+    )
+    vlm_call: dict[str, object] = {}
+
+    async def stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
+        vlm_call.update(kwargs)
+        yield "這是目前上傳的 Logo。"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
+        mock_vlm_class.return_value.stream_with_messages = stream
+        await rag.generate(
+            messages=messages,
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+        )
+
+    assert fake_vdb.last_query == "這又是什麼？ data:image/png;base64,logo-current"
+    vlm_messages = str(vlm_call["messages"])
+    assert "j7ef-previous" not in vlm_messages
+    assert ("先前圖片辨識為 J7EF Plus。" in vlm_messages) is expects_summary
+    assert "logo-current" in vlm_messages
+    assert {"role": "user", "content": []} not in vlm_call["messages"]
+
+
+@pytest.mark.asyncio
+async def test_generate_reserves_current_and_top_retrieved_images_after_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Public generation sends current and top-page images despite image history."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    top_page = SimpleNamespace(
+        metadata={
+            "content_metadata": {
+                "type": "image",
+                "page_number": 9,
+                "location": [0, 0, 1, 1],
+            },
+            "collection_name": "test",
+            "source": {
+                "source_name": "top.pdf",
+                "source_location": "s3://bucket/top-page",
+            },
+        },
+        page_content="",
+    )
+    monkeypatch.setattr(
+        fake_vdb,
+        "retrieval_image_langchain",
+        lambda *args, **kwargs: [top_page],
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,old-one"},
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,old-two"},
+                },
+            ],
+        },
+        {"role": "assistant", "content": "Prior image summary."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "current question"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,current-image"},
+                },
+            ],
+        },
+    ]
+    final_vlm_call: dict[str, object] = {}
+
+    async def completion_stream() -> AsyncIterator[SimpleNamespace]:
+        yield SimpleNamespace(
+            usage=None,
+            choices=[
+                SimpleNamespace(delta=SimpleNamespace(content="ok", reasoning=None))
+            ],
+        )
+
+    async def create_completion(**kwargs: object) -> AsyncIterator[SimpleNamespace]:
+        final_vlm_call.update(kwargs)
+        return completion_stream()
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create_completion),
+        )
+    )
+    object_store = SimpleNamespace(
+        get_object_from_uri=lambda uri: b"top-page-image",
+    )
+
+    with (
+        patch(
+            "nvidia_rag.rag_server.vlm.VLM._create_async_client",
+            return_value=client,
+        ),
+        patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=object_store,
+        ),
+        patch(
+            "nvidia_rag.rag_server.vlm.VLM._convert_image_url_to_png_b64",
+            side_effect=lambda value: value.split(",", maxsplit=1)[-1],
+        ),
+    ):
+        await rag.generate(
+            messages=messages,
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+            fetch_full_page_context=False,
+            vlm_max_total_images=2,
+        )
+
+    final_messages = final_vlm_call["messages"]
+    final_prompt = str(final_messages)
+    assert "old-one" not in final_prompt
+    assert "old-two" not in final_prompt
+    assert "current-image" in final_prompt
+    assert "dG9wLXBhZ2UtaW1hZ2U=" in final_prompt
+
+
+@pytest.mark.asyncio
+async def test_generate_preserves_legacy_image_history_when_accuracy_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The opt-in isolation does not change feature-off VLM conversations."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "false")
+    monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    rag = NvidiaRAG()
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "first"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,legacy-previous"},
+                },
+            ],
+        },
+        {"role": "assistant", "content": "previous answer"},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "second"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,current"},
+                },
+            ],
+        },
+    ]
+    vlm_call: dict[str, object] = {}
+
+    async def stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
+        vlm_call.update(kwargs)
+        yield "ok"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
+        mock_vlm_class.return_value.stream_with_messages = stream
+        await rag.generate(
+            messages=messages,
+            use_knowledge_base=False,
+            enable_vlm_inference=True,
+        )
+
+    vlm_messages = str(vlm_call["messages"])
+    assert "legacy-previous" in vlm_messages
+    assert "current" in vlm_messages
 
 
 @pytest.mark.asyncio

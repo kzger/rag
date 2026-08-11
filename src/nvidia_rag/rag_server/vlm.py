@@ -274,9 +274,11 @@ class VLM:
         )
 
         # Normalize chat history; keep images inline as image_url parts and collect incoming system text
-        chat_history_messages, _, incoming_system_text = self._normalize_messages(
-            incoming_messages or []
-        )
+        (
+            chat_history_messages,
+            last_user_idx,
+            incoming_system_text,
+        ) = self._normalize_messages(incoming_messages or [])
 
         # Build system + citations instruction/user prompt
         system_text = (vlm_template.get("system") or "").strip()
@@ -285,15 +287,21 @@ class VLM:
         system_message: MessageDict = {"role": "system", "content": system_text}
 
         # Count images already present in chat history to respect overall image budget
-        existing_image_count = 0
-        try:
-            for msg in chat_history_messages:
-                parts = msg["content"] if isinstance(msg.get("content"), list) else []
-                for p in parts:
-                    if isinstance(p, dict) and p.get("type") == "image_url":
-                        existing_image_count += 1
-        except Exception:
-            existing_image_count = 0
+        message_image_counts = [
+            sum(
+                1
+                for part in (
+                    message.get("content", [])
+                    if isinstance(message.get("content"), list)
+                    else []
+                )
+                if isinstance(part, dict) and part.get("type") == "image_url"
+            )
+            for message in chat_history_messages
+        ]
+        current_query_image_count = message_image_counts[last_user_idx]
+        existing_image_count = sum(message_image_counts)
+        historical_image_count = existing_image_count - current_query_image_count
 
         remaining_image_budget = None
         if isinstance(max_total_images, int) and max_total_images >= 0:
@@ -307,6 +315,10 @@ class VLM:
                 docs,
                 remaining_image_budget,
                 nrl_mode=nrl_mode,
+                prioritize_page_images=(
+                    self.config.enable_multimodal_accuracy
+                    and current_query_image_count > 0
+                ),
             )
         else:
             human_template = vlm_template.get("human") or "{context}\n\n{question}"
@@ -323,6 +335,20 @@ class VLM:
                 content_parts.extend(
                     self._extract_images_from_docs(docs, remaining_image_budget)
                 )
+
+        retrieved_image_count = sum(
+            1
+            for part in content_parts
+            if isinstance(part, dict) and part.get("type") == "image_url"
+        )
+        logger.info(
+            "VLM image budget allocation: current_query_images=%d "
+            "historical_images=%d retrieved_images=%d max_total_images=%s",
+            current_query_image_count,
+            historical_image_count,
+            retrieved_image_count,
+            max_total_images,
+        )
 
         citations_instruct_user_message: MessageDict = {
             "role": "user",
@@ -472,6 +498,7 @@ class VLM:
         docs: list[Any],
         remaining_image_budget: int | None,
         nrl_mode: bool = False,
+        prioritize_page_images: bool = False,
     ) -> list[dict[str, Any]]:
         """Build content_parts with text and images interleaved per page.
 
@@ -480,6 +507,8 @@ class VLM:
         nv-ingest content_metadata structure.  In NRL mode a single chunk may
         carry both text content (page_content) *and* a page image
         (stored_image_uri), so both are included.
+        When prioritize_page_images=True, retain retrieval order and attach at
+        most one usable image per page candidate.
         """
         human_template = vlm_template.get("human") or "{context}\n\n{question}"
         intro = human_template.format(context="", question="").rstrip()
@@ -527,7 +556,11 @@ class VLM:
                 grouped[k] = []
             grouped[k].append(doc)
 
-        for source_key, page_num in sorted(grouped.keys(), key=lambda x: (x[0], x[1])):
+        group_keys = list(grouped)
+        if not prioritize_page_images:
+            group_keys.sort(key=lambda key: (key[0], key[1]))
+
+        for source_key, page_num in group_keys:
             doc_list = grouped[(source_key, page_num)]
             text_parts: list[str] = []
             image_docs: list[Any] = []
@@ -573,6 +606,8 @@ class VLM:
                 content_parts.extend(img_parts)
                 if remaining_image_budget is not None and img_parts:
                     remaining_image_budget -= len(img_parts)
+                if prioritize_page_images and img_parts:
+                    break
 
         if no_page:
             add_text = self._format_docs_text(no_page)

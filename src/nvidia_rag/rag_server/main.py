@@ -728,6 +728,17 @@ class NvidiaRAG:
 
         query, chat_history = prepare_llm_request(messages)
 
+        if self.config.enable_multimodal_accuracy and self._contains_images(query):
+            chat_history, omitted_history_images = self._isolate_historical_images(
+                chat_history
+            )
+            logger.info(
+                "Multimodal image isolation: current_query_images=%d "
+                "historical_images_omitted=%d",
+                self._count_images(query),
+                omitted_history_images,
+            )
+
         # Log extracted query
         query_text = self._extract_text_from_content(query)
         logger.info("Extracted Query: '%s'", query_text[:200] if query_text else "")
@@ -2266,11 +2277,41 @@ class NvidiaRAG:
         Returns:
             bool: True if content contains images, False otherwise
         """
-        if isinstance(content, list):
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "image_url":
-                    return True
-        return False
+        return self._count_images(content) > 0
+
+    @staticmethod
+    def _count_images(content: Any) -> int:
+        """Count structured image parts without inspecting their payloads."""
+        if not isinstance(content, list):
+            return 0
+        return sum(
+            1
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "image_url"
+        )
+
+    @staticmethod
+    def _isolate_historical_images(
+        chat_history: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Remove raw images from prior turns while preserving auditable text."""
+        isolated: list[dict[str, Any]] = []
+        omitted_images = 0
+        for message in chat_history:
+            copied_message = dict(message)
+            content = message.get("content")
+            if isinstance(content, list):
+                retained_content = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "image_url":
+                        omitted_images += 1
+                        continue
+                    retained_content.append(item)
+                if not retained_content:
+                    continue
+                copied_message["content"] = retained_content
+            isolated.append(copied_message)
+        return isolated, omitted_images
 
     def _build_retriever_query_from_content(self, content: Any) -> tuple[str, bool]:
         """Build retriever query from either string or multimodal content.

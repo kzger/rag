@@ -175,6 +175,136 @@ class TestVLM:
         assert system_msg["role"] == "system"
         assert len(user_msg["content"]) == 1  # only text; no room for doc images
 
+    @pytest.mark.parametrize(
+        (
+            "accuracy_enabled",
+            "query_has_image",
+            "max_total_images",
+            "expected_context_urls",
+        ),
+        [
+            (
+                True,
+                True,
+                3,
+                [
+                    "data:image/png;base64,dG9w",
+                    "data:image/png;base64,c2Vjb25k",
+                ],
+            ),
+            (
+                False,
+                True,
+                3,
+                [
+                    "data:image/png;base64,c2Vjb25k",
+                    "data:image/png;base64,dG9w",
+                ],
+            ),
+            (
+                True,
+                False,
+                2,
+                [
+                    "data:image/png;base64,c2Vjb25k",
+                    "data:image/png;base64,dG9w",
+                ],
+            ),
+        ],
+    )
+    def test_image_budget_prioritizes_current_query_then_ranked_page_images(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        accuracy_enabled: bool,
+        query_has_image: bool,
+        max_total_images: int,
+        expected_context_urls: list[str],
+    ) -> None:
+        """Ranked page-image order survives prompt assembly after the query image."""
+        self.mock_config.enable_multimodal_accuracy = accuracy_enabled
+        current_content = [{"type": "text", "text": "這又是什麼？"}]
+        if query_has_image:
+            current_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,raw-query-secret"},
+                }
+            )
+        current_message = {
+            "role": "user",
+            "content": current_content,
+        }
+
+        def page_doc(source: str, page: int, location: str) -> SimpleNamespace:
+            return SimpleNamespace(
+                metadata={
+                    "content_metadata": {
+                        "type": "image",
+                        "page_number": page,
+                        "location": [0, 0, 1, 1],
+                    },
+                    "collection_name": "products",
+                    "source": {
+                        "source_name": source,
+                        "source_location": location,
+                    },
+                },
+                page_content="",
+            )
+
+        ranked_docs = [
+            page_doc("z-top.pdf", 9, "s3://bucket/top"),
+            page_doc("z-top.pdf", 9, "s3://bucket/top-duplicate"),
+            page_doc("a-second.pdf", 1, "s3://bucket/second"),
+        ]
+        object_store = MagicMock()
+        object_store.get_object_from_uri.side_effect = lambda uri: uri.rsplit(
+            "/", maxsplit=1
+        )[-1].encode()
+
+        with (
+            patch(
+                "nvidia_rag.rag_server.vlm.get_object_store_operator",
+                return_value=object_store,
+            ),
+            patch.object(
+                VLM,
+                "_convert_image_url_to_png_b64",
+                side_effect=lambda value: value,
+            ),
+        ):
+            system_msg, context_msg, history = self.vlm.extract_and_process_messages(
+                self.vlm.vlm_template,
+                ranked_docs,
+                [current_message],
+                context_text="",
+                question_text="這又是什麼？",
+                max_total_images=max_total_images,
+                organize_by_page=True,
+            )
+            assembled = self.vlm.assemble_messages(system_msg, context_msg, history)
+
+        query_urls = [
+            part["image_url"]["url"]
+            for part in assembled[-1]["content"]
+            if part.get("type") == "image_url"
+        ]
+        context_urls = [
+            part["image_url"]["url"]
+            for part in assembled[1]["content"]
+            if part.get("type") == "image_url"
+        ]
+        expected_query_images = int(query_has_image)
+        assert len(query_urls) == expected_query_images
+        assert context_urls == expected_context_urls
+        assert (
+            f"VLM image budget allocation: current_query_images={expected_query_images} "
+            "historical_images=0 retrieved_images=2 "
+            f"max_total_images={max_total_images}" in caplog.text
+        )
+        assert "data:image" not in caplog.text
+        assert "raw-query-secret" not in caplog.text
+
     @pytest.mark.asyncio
     async def test_analyze_with_messages_invokes_model(self):
         system_message = {"role": "system", "content": "sys"}

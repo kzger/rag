@@ -92,8 +92,8 @@ export SUMMARY_LLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="nemotron-vlm-embedding-ms:8000/v1"
 export ENABLE_VLM_INFERENCE="true"
-# Optional staged accuracy pipeline. Elasticsearch image retrieval keeps up to
-# APP_RETRIEVER_TOPK unique document pages from VECTOR_DB_TOPK similarity hits.
+# Optional staged accuracy pipeline. Image retrieval keeps up to
+# APP_RETRIEVER_TOPK unique document pages in backend similarity order.
 export ENABLE_MULTIMODAL_ACCURACY="true"
 export VLM_TO_LLM_FALLBACK="false"
 ```
@@ -189,7 +189,7 @@ export SUMMARY_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
 export ENABLE_VLM_INFERENCE="true"
-export ENABLE_MULTIMODAL_ACCURACY="true"  # Optional diverse Elasticsearch pages
+export ENABLE_MULTIMODAL_ACCURACY="true"  # Optional diverse document pages
 export VLM_TO_LLM_FALLBACK="false"
 ```
 
@@ -290,7 +290,7 @@ nimOperator:
 envVars:
   # VLM inference settings
   ENABLE_VLM_INFERENCE: "true"
-  ENABLE_MULTIMODAL_ACCURACY: "true"  # Optional diverse Elasticsearch pages
+  ENABLE_MULTIMODAL_ACCURACY: "true"  # Optional diverse document pages
   VLM_TO_LLM_FALLBACK: "false"
   APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
@@ -424,8 +424,20 @@ For a step-by-step guide with code examples covering collection creation, docume
   vector scoring with field collapse, and LanceDB performs an exhaustive ordered
   scan, because their KNN APIs otherwise select raw chunks before grouping.
   Enable this mode on those backends only when that latency tradeoff is
-  acceptable. This stage only broadens candidates; later fusion and verification
-  must decide which candidates can support an answer.
+  acceptable.
+- **Multi-turn image isolation and budget**: The same accuracy flag treats only
+  images in the latest user turn as query images. Raw images from earlier turns
+  are omitted before retrieval and VLM inference; prior assistant text remains as
+  the auditable conversation summary. If no summary was produced, the historical
+  image is still omitted and the current request continues. The VLM image budget
+  is allocated to current-query images first, followed by retrieved page images
+  in relevance order. Logs report only role-based image counts and allocation,
+  never image URIs or base64 payloads. With the flag disabled, the legacy
+  conversation behavior remains unchanged.
+
+This staged pipeline broadens candidates and isolates current-turn evidence;
+later fusion and verification must still decide which candidates support an
+answer.
 
 
 ## Related Topics
