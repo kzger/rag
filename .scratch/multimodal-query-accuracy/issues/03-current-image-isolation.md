@@ -22,3 +22,5 @@
   `tests/unit/test_rag_server/test_vlm.py`.
 - Live multi-turn report and sanitized allocation observations:
   `docs/research/evidence/multimodal-current-image-isolation-2026-08-11.json`.
+  The rerun after `0c6646d` completed with the live three-image budget
+  (current query + two ranked retrieved pages) and no VLM image-limit error.
