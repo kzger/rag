@@ -141,6 +141,27 @@ and image-RAG traffic above was active. All 14 required services remained
 healthy, every restart count was unchanged, peak memory used was 64,412 MiB,
 and minimum free memory was 16,668 MiB.
 
+## Config-validation follow-up (2026-08-11)
+
+The expand–contract validator was checked against the still-running H100
+deployment without restarting or changing its state:
+
+- Normal preflight accepted the resolved configuration and classified it as
+  `custom (not certified)`. Its retrieval output cap was `APP_RETRIEVER_TOPK=5`,
+  a safe value that differs from the certified FP8 baseline of 4.
+- The live `rag-server` exposed that custom retrieval value. A knowledge-base
+  `/v1/generate` request against `qwen_h100_validation_20260808` omitted a
+  per-request Top-K override, exercised retrieval with the custom deployment
+  default, and completed with HTTP 200.
+- RAG and ingestor dependency health both returned HTTP 200.
+- A direct Qwen request containing two image inputs, the supported limit of the
+  running container, completed with HTTP 200 rather than an image-count 400.
+
+Unit coverage separately resolves matched custom Qwen/RAG image limits through
+Compose, verifies that both services receive the values, and rejects an RAG
+budget above the Qwen server limit before deployment. No response body,
+environment dump, or credential was captured in this follow-up evidence.
+
 ## Limitations
 
 - A host reboot was not performed because it would disrupt the shared host.

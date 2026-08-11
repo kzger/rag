@@ -41,12 +41,20 @@ require_ngc_key() {
   fi
 }
 
-validate_config() {
+validate_general_config() {
   NGC_API_KEY=${NGC_API_KEY:-config-validation-only} \
     USERID=${USERID:-$(id -u)} \
     "${compose_args[@]}" config --format json |
     uv run python "$repo_root/scripts/qwen_h100_local_rag.py" \
-      validate-config - --variant "$variant"
+      validate-config -
+}
+
+validate_certified_config() {
+  NGC_API_KEY=${NGC_API_KEY:-config-validation-only} \
+    USERID=${USERID:-$(id -u)} \
+    "${compose_args[@]}" config --format json |
+    uv run python "$repo_root/scripts/qwen_h100_local_rag.py" \
+      validate-certified-config - --profile "$variant"
 }
 
 command=${1:-help}
@@ -59,16 +67,24 @@ case "$command" in
       "${compose_args[@]}" config "$@"
     ;;
   validate)
-    validate_config
+    if (($# == 0)); then
+      validate_general_config
+    elif [[ "${1:-}" == "--certified" && $# == 1 ]]; then
+      validate_general_config
+      validate_certified_config
+    else
+      echo "Usage: scripts/qwen_h100_local_rag.sh validate [--certified]" >&2
+      exit 2
+    fi
     ;;
   pull)
     require_ngc_key
-    validate_config
+    validate_general_config
     "${compose_args[@]}" pull "$@"
     ;;
   up)
     require_ngc_key
-    validate_config
+    validate_general_config
     "${compose_args[@]}" up -d "$@"
     ;;
   ps)
@@ -97,6 +113,8 @@ case "$command" in
   help | *)
     echo "Usage: scripts/qwen_h100_local_rag.sh COMMAND [ARGS...]"
     echo "Commands: config validate pull up ps logs restart stop down monitor"
+    echo "  validate               Check safety, types, ranges, and compatibility."
+    echo "  validate --certified   Also require exact FP8/NVFP4 profile conformity."
     echo "Set QWEN_VARIANT=nvfp4 to include the fallback override."
     ;;
 esac

@@ -18,11 +18,11 @@ services:
       - --gpu-memory-utilization
       - ${QWEN_GPU_MEMORY_UTILIZATION:-0.48}
       - --max-num-seqs
-      - "1"
+      - ${QWEN_MAX_NUM_SEQS:-1}
       - --reasoning-parser
       - qwen3
       - --limit-mm-per-prompt
-      - '{"image":2,"video":0}'
+      - '{"image":${QWEN_MAX_IMAGES_PER_PROMPT:-2},"video":0}'
       - --default-chat-template-kwargs
       - '{"enable_thinking":false}'
     environment:

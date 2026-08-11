@@ -144,10 +144,11 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 並保留 `APP_RETRIEVER_TOPK=4` fallback，僅用來防止未載入 canonical `.env` 的
 直接 Compose 呼叫失去保守上限。
 
-`scripts/qwen_h100_local_rag.py` 是安全檢查器。它會拒絕偏離已驗證 profile 的
-設定，例如 context 不是 `32768`、`VECTOR_DB_TOPK` 不是 `100`，或
-`APP_RETRIEVER_TOPK` 不是 `4`。若要建立新的正式 profile，不能繞過 validator；
-必須同步更新 validator、文件與測試證據。
+`scripts/qwen_h100_local_rag.py` 會分開處理一般合法性與 certified conformity。
+一般 `validate` 依型別、範圍、跨欄位關係及安全拓撲檢查設定；合法的 custom
+context、Top-K 或 workload budget 可以啟動，但摘要會標記為 `custom`。執行
+`validate --certified` 才會要求完全符合 FP8 或 NVFP4 實測基準，並把每個偏移
+列為 profile drift。建立新的正式 profile 仍須同步更新文件、測試及 live evidence。
 
 ## 4. 第一次部署
 
@@ -334,9 +335,10 @@ export QWEN_MAX_MODEL_LEN=32768
 
 這個值會傳給 vLLM `--max-model-len`。修改後必須重建 Qwen 與所有使用它的服務：
 
-目前 validator 明確只接受 `32768`。要改成其他值，必須先由工程人員建立新
-profile，同步修改 `scripts/qwen_h100_local_rag.py` 的預期值並完成本文件第
-8、9 節的測試。新 profile 通過 validator 後，才能執行以下重建指令：
+一般 validator 接受 `1024` 到 `131072` 的整數，但所有 generation、agentic
+與 summary token budgets 都不得超過它。偏離 `32768` 後仍可作為 custom
+configuration 啟動；若要宣稱為 certified profile，必須完成本文件第 8、9 節
+的測試並補上對應 evidence。修改後可執行以下重建指令：
 
 ```bash
 scripts/qwen_h100_local_rag.sh up --force-recreate \
@@ -367,10 +369,11 @@ docker inspect --format '{{json .Config.Cmd}}' compose-qwen-vllm-1 | jq .
 
 ```bash
 scripts/qwen_h100_local_rag.sh validate
-QWEN_VARIANT=nvfp4 scripts/qwen_h100_local_rag.sh validate
+scripts/qwen_h100_local_rag.sh validate --certified
+QWEN_VARIANT=nvfp4 scripts/qwen_h100_local_rag.sh validate --certified
 ```
 
-第二個指令只驗證 fallback config，不會同時啟動 NVFP4。
+最後一個指令只驗證 NVFP4 fallback config，不會同時啟動 NVFP4。
 
 ### 8.2 Unit tests
 

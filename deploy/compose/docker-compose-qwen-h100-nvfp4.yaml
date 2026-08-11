@@ -2,11 +2,11 @@ services:
   qwen-vllm:
     image: vllm/vllm-openai:v0.24.0@sha256:f9de5cd9fa907fbf6dbba691eb7db095d48ad58ea283e3eba7142f9a91e186e8
     command: !override
-      - nvidia/Qwen3.6-35B-A3B-NVFP4
+      - ${QWEN_NVFP4_MODEL_ID:-nvidia/Qwen3.6-35B-A3B-NVFP4}
       - --revision
-      - 491c2f1ea524c639598bf8fa787a93fed5a6fbce
+      - ${QWEN_NVFP4_MODEL_REVISION:-491c2f1ea524c639598bf8fa787a93fed5a6fbce}
       - --served-model-name
-      - nvidia/Qwen3.6-35B-A3B-NVFP4
+      - ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
       - --host
       - 0.0.0.0
       - --port
@@ -23,33 +23,33 @@ services:
       - --max-model-len
       - ${QWEN_MAX_MODEL_LEN:-32768}
       - --gpu-memory-utilization
-      - "0.40"
+      - ${QWEN_NVFP4_GPU_MEMORY_UTILIZATION:-0.40}
       - --max-num-seqs
-      - "1"
+      - ${QWEN_MAX_NUM_SEQS:-1}
       - --reasoning-parser
       - qwen3
       - --limit-mm-per-prompt
-      - '{"image":2,"video":0}'
+      - '{"image":${QWEN_MAX_IMAGES_PER_PROMPT:-2},"video":0}'
       - --default-chat-template-kwargs
       - '{"enable_thinking":false}'
 
   rag-server:
     environment:
-      APP_LLM_MODELNAME: nvidia/Qwen3.6-35B-A3B-NVFP4
-      APP_VLM_MODELNAME: nvidia/Qwen3.6-35B-A3B-NVFP4
-      APP_QUERYREWRITER_MODELNAME: nvidia/Qwen3.6-35B-A3B-NVFP4
-      APP_FILTEREXPRESSIONGENERATOR_MODELNAME: nvidia/Qwen3.6-35B-A3B-NVFP4
-      REFLECTION_LLM: nvidia/Qwen3.6-35B-A3B-NVFP4
-      AGENTIC_PLANNER_LLM_MODEL: nvidia/Qwen3.6-35B-A3B-NVFP4
-      AGENTIC_TASK_LLM_MODEL: nvidia/Qwen3.6-35B-A3B-NVFP4
-      AGENTIC_SEED_GEN_LLM_MODEL: nvidia/Qwen3.6-35B-A3B-NVFP4
-      AGENTIC_SYNTHESIS_LLM_MODEL: nvidia/Qwen3.6-35B-A3B-NVFP4
+      APP_LLM_MODELNAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      APP_VLM_MODELNAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      APP_QUERYREWRITER_MODELNAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      APP_FILTEREXPRESSIONGENERATOR_MODELNAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      REFLECTION_LLM: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      AGENTIC_PLANNER_LLM_MODEL: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      AGENTIC_TASK_LLM_MODEL: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
 
   ingestor-server:
     environment:
-      APP_NVINGEST_CAPTIONMODELNAME: nvidia/Qwen3.6-35B-A3B-NVFP4
-      SUMMARY_LLM: nvidia/Qwen3.6-35B-A3B-NVFP4
+      APP_NVINGEST_CAPTIONMODELNAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
+      SUMMARY_LLM: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}
 
   nv-ingest-ms-runtime:
     environment:
-      VLM_CAPTION_MODEL_NAME: nvidia/Qwen3.6-35B-A3B-NVFP4
+      VLM_CAPTION_MODEL_NAME: ${QWEN_NVFP4_SERVED_MODEL_NAME:-nvidia/Qwen3.6-35B-A3B-NVFP4}

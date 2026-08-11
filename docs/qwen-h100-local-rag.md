@@ -47,11 +47,29 @@ All deployment settings live in the local `deploy/compose/.env`; its committed
 form must contain only non-secret defaults. Model caches and application data
 use named volumes prefixed with `rag-vol-`.
 
-The validated retrieval defaults are explicit in that file:
+The certified retrieval defaults are explicit in that file:
 `VECTOR_DB_TOPK=100` fetches the vector-store candidate pool and
 `APP_RETRIEVER_TOPK=4` caps the reranked chunks inserted into the shared Qwen
 prompt. Request payloads and saved frontend settings can still override these
 environment defaults.
+
+The following deployment settings are intentionally tunable in
+`deploy/compose/.env`. General validation checks their types, documented
+ranges, and cross-field relationships; changing a certified default makes the
+configuration custom but does not make it invalid:
+
+| Setting group | Variables | General validation |
+| --- | --- | --- |
+| Qwen resources | `QWEN_MAX_MODEL_LEN`, `QWEN_GPU_MEMORY_UTILIZATION`, `QWEN_MAX_NUM_SEQS` | Context 1024–131072; GPU utilization greater than 0 and at most 0.95; sequences 1–8 |
+| Images | `QWEN_MAX_IMAGES_PER_PROMPT`, `APP_VLM_MAX_TOTAL_IMAGES` | Positive integers up to 32; the RAG budget cannot exceed the Qwen limit |
+| Retrieval and conversation | `VECTOR_DB_TOPK`, `APP_RETRIEVER_TOPK`, `CONVERSATION_HISTORY`, `MAX_RECURSION_DEPTH`, `MAX_REFLECTION_LOOP` | Candidate pool 1–400; final Top-K cannot exceed it; history 0–100; loop depths 1–20; query rewriting requires positive history |
+| Token budgets | `LLM_MAX_TOKENS`, `APP_VLM_MAX_TOKENS`, `AGENTIC_CONTEXT_MAX_TOKENS`, `APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS`, `AGENTIC_*_LLM_MAX_TOKENS`, `SUMMARY_LLM_MAX_CHUNK_LENGTH` | Positive integers no greater than `QWEN_MAX_MODEL_LEN` |
+| Workload | `AGENTIC_CONCURRENCY_LIMIT`, `NV_INGEST_FILES_PER_BATCH`, `NV_INGEST_CONCURRENT_BATCHES`, `SUMMARY_MAX_PARALLELIZATION` | Respectively 1–16, 1–250, 1–16, and 1–64 |
+
+FP8 and NVFP4 model IDs, revisions, served names, and memory envelopes are also
+explicit. A custom model is valid only when every Qwen-backed role uses its
+resolved `--served-model-name` and all internal endpoints target an existing,
+compatible resolved service.
 
 ## Validate the resolved deployment
 
@@ -60,13 +78,23 @@ It validates the resolved service graph rather than the source YAML layout.
 
 ```bash
 scripts/qwen_h100_local_rag.sh validate
+scripts/qwen_h100_local_rag.sh validate --certified
 scripts/qwen_h100_local_rag.sh config --services
 ```
 
-The validator checks the pinned Qwen image and model revision, one-GPU
-assignment, shared generation roles, multimodal and advanced settings,
-excluded ingestion paths, healthchecks, restart policies, and the four allowed
-loopback ports.
+`validate` is the normal preflight used by `pull` and `up`. It checks safety,
+topology, types, ranges, and compatibility, then reports whether the resolved
+configuration is certified FP8, certified NVFP4, or custom.
+`validate --certified` additionally requires exact conformity with the profile
+selected by `QWEN_VARIANT` and reports each drift with its parameter, actual
+value, and certified baseline. Use it when reproducing the published H100
+evidence; a safe custom deployment should use normal validation.
+
+The non-tunable safety contract remains strict: the Qwen image digest, required
+and forbidden services, GPU 0 placement, the four unique loopback host ports,
+internal role/endpoints, excluded high-resource ingestion modes, healthchecks,
+and `restart: unless-stopped`. Configuration summaries contain only an
+allowlisted set of non-secret values.
 
 ## Start and inspect
 
@@ -190,7 +218,7 @@ gate after every change:
 
    ```bash
    export QWEN_VARIANT=nvfp4
-   scripts/qwen_h100_local_rag.sh validate
+   scripts/qwen_h100_local_rag.sh validate --certified
    scripts/qwen_h100_local_rag.sh pull
    scripts/qwen_h100_local_rag.sh up --force-recreate qwen-vllm rag-server ingestor-server nv-ingest-ms-runtime
    scripts/qwen_h100_local_rag.sh monitor \
