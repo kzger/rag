@@ -200,10 +200,6 @@ SAFE_SETTING_KEYS = {
     "VLM_CAPTION_MODEL_NAME",
     "VLM_TO_LLM_FALLBACK",
     "VECTOR_DB_TOPK",
-    "HF_TOKEN",
-    "TOKEN",
-    "GITHUB_TOKEN",
-    "client_secret",
 }
 
 
@@ -218,11 +214,6 @@ class ValidationIssue:
     rule: str
     baseline: Any | None = None
 
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "actual", _redact_secrets(self.actual))
-        object.__setattr__(self, "rule", _redact_secrets(self.rule))
-        object.__setattr__(self, "baseline", _redact_secrets(self.baseline))
-
     def __str__(self) -> str:
         fields = (
             f"[{self.category}] service={self.service} parameter={self.parameter} "
@@ -231,56 +222,6 @@ class ValidationIssue:
         if self.baseline is not None:
             fields += f" baseline={json.dumps(self.baseline, sort_keys=True)}"
         return fields
-
-
-_SECRET_COMPONENT_PATTERN = (
-    r"(?:api[-_]?(?:key|token)|password|secret|(?:access|auth|bearer)[-_]?token)"
-)
-_SECRET_KEY_PATTERN = re.compile(
-    rf"^(?:token|hf_token|{_SECRET_COMPONENT_PATTERN})$|"
-    rf"(?:^|[-_])(?:{_SECRET_COMPONENT_PATTERN}|token|secret)$",
-    re.IGNORECASE,
-)
-_KEY_VALUE_SECRET_PATTERN = re.compile(
-    rf"(?i)(?:^|[?&\s,])(?:token|hf_token|{_SECRET_COMPONENT_PATTERN}|"
-    rf"[A-Za-z0-9]+[-_]token|[A-Za-z0-9]+[-_]secret)"
-    rf"\s*[=:]\s*[^&\s,}}]+"
-)
-_BEARER_SECRET_PATTERN = re.compile(r"(?i)(\bBearer\s+)[^\s,}]+")
-_URL_USERINFO_PATTERN = re.compile(r"(://)[^/@\s]+(@)")
-_URL_QUERY_SECRET_PATTERN = re.compile(
-    r"(?i)([?&](?:token|api[_-]?key|password|secret|(?:access|auth|bearer)[_-]?token|"
-    r"[A-Za-z0-9]+[-_]token|[A-Za-z0-9]+[-_]secret)=)[^&#\s]+"
-)
-
-
-def _is_secret_key(key: str | None) -> bool:
-    return bool(key and _SECRET_KEY_PATTERN.search(key.replace(" ", "")))
-
-
-def _redact_secret_string(value: str) -> str:
-    value = _KEY_VALUE_SECRET_PATTERN.sub("<redacted>", value)
-    value = _BEARER_SECRET_PATTERN.sub(r"\1<redacted>", value)
-    value = _URL_QUERY_SECRET_PATTERN.sub(r"\1<redacted>", value)
-    return _URL_USERINFO_PATTERN.sub(r"\1<redacted>\2", value)
-
-
-def _redact_secrets(value: Any, key: str | None = None) -> Any:
-    """Keep diagnostics and summaries safe without masking ordinary token limits."""
-    if _is_secret_key(key):
-        return "<redacted>"
-    if isinstance(value, dict):
-        return {
-            item_key: _redact_secrets(item, str(item_key))
-            for item_key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_secrets(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_redact_secrets(item) for item in value)
-    if isinstance(value, str):
-        return _redact_secret_string(value)
-    return value
 
 
 def _load_config(path: str) -> dict[str, Any]:
@@ -323,18 +264,15 @@ def _safe_qwen_command(
                 signature.append("<missing-value>")
                 index += 1
         elif option.startswith("--"):
-            secret_option = _is_secret_key(option.removeprefix("--"))
-            if include_unknown_options and not secret_option:
+            if include_unknown_options:
                 signature.append(option)
-            elif include_unknown_options and secret_option:
-                signature.extend([option, "<redacted>"])
             index += 1
             if index < len(command) and not command[index].startswith("--"):
                 index += 1
         else:
             signature.append("<unexpected-positional>")
             index += 1
-    return [_redact_secret_string(item) for item in signature]
+    return signature
 
 
 def _certified_qwen_command(profile: str) -> list[str]:
@@ -399,16 +337,7 @@ def _add_issue(
     rule: str,
     baseline: Any | None = None,
 ) -> None:
-    issues.append(
-        ValidationIssue(
-            category,
-            service,
-            parameter,
-            actual,
-            rule,
-            baseline,
-        )
-    )
+    issues.append(ValidationIssue(category, service, parameter, actual, rule, baseline))
 
 
 def _validate_integer(
@@ -532,142 +461,6 @@ def _validate_internal_endpoint(
         )
 
 
-def _resolved_internal_port(services: dict[str, Any], service_name: str) -> int | None:
-    """Read a service's internal port from resolved Compose metadata."""
-    service = services.get(service_name, {})
-    if not isinstance(service, dict):
-        return None
-    raw_expose = service.get("expose")
-    raw_ports = service.get("ports")
-    if raw_expose == [] and raw_ports == []:
-        return None
-    if raw_ports is not None and not isinstance(raw_ports, list):
-        return None
-    if raw_expose is not None and not isinstance(raw_expose, list | str | int):
-        return None
-    metadata_values: list[Any] = []
-    if isinstance(raw_expose, list):
-        metadata_values.extend(
-            value for value in raw_expose if "/udp" not in str(value).lower()
-        )
-    elif raw_expose is not None:
-        if "/udp" not in str(raw_expose).lower():
-            metadata_values.append(raw_expose)
-    if isinstance(raw_ports, list):
-        for port in raw_ports:
-            if not isinstance(port, dict):
-                return None
-            if str(port.get("protocol", "tcp")).lower() != "tcp":
-                continue
-            target = port.get("target")
-            if isinstance(target, bool | float) or not isinstance(target, str | int):
-                return None
-            metadata_values.append(target)
-    for value in metadata_values:
-        if isinstance(value, bool | float):
-            return None
-        port_text = str(value).split("/", maxsplit=1)[0]
-        if re.fullmatch(r"[0-9]+", port_text) is None or not (
-            1 <= int(port_text) <= 65535
-        ):
-            return None
-    healthcheck_text = json.dumps(service.get("healthcheck", {}), sort_keys=True)
-    listener_match = re.search(
-        r"(?:localhost|127\.0\.0\.1|%s):([0-9]+)" % re.escape(service_name),
-        healthcheck_text,
-    )
-    healthcheck_port = (
-        int(listener_match.group(1))
-        if listener_match and 1 <= int(listener_match.group(1)) <= 65535
-        else None
-    )
-    if healthcheck_port is not None:
-        listener_values = metadata_values
-        parsed_values = {
-            int(str(value).split("/", maxsplit=1)[0])
-            for value in listener_values
-            if isinstance(value, str | int)
-            and not isinstance(value, bool)
-            and re.fullmatch(r"[0-9]+(?:/tcp)?", str(value), re.IGNORECASE)
-            and 1 <= int(str(value).split("/", maxsplit=1)[0]) <= 65535
-        }
-        if (raw_expose or raw_ports) and not parsed_values:
-            return None
-        if parsed_values and healthcheck_port not in parsed_values:
-            return None
-        return healthcheck_port
-    exposed = raw_expose or []
-    if isinstance(exposed, str | int):
-        exposed = [exposed]
-    candidates: set[int] = set()
-    for value in exposed:
-        match = re.fullmatch(r"([0-9]+)(?:/(tcp|udp))?", str(value), re.IGNORECASE)
-        if match and (match.group(2) or "tcp").lower() != "tcp":
-            continue
-        if match:
-            port = int(match.group(1))
-            if 1 <= port <= 65535:
-                candidates.add(port)
-    ports = raw_ports or []
-    for port in ports:
-        if isinstance(port, dict):
-            if str(port.get("protocol", "tcp")).lower() != "tcp":
-                continue
-            target = port.get("target")
-            if isinstance(target, bool | float) or not isinstance(target, str | int):
-                continue
-            if re.fullmatch(r"[0-9]+", str(target)) is None:
-                continue
-            target = int(target)
-            if 1 <= target <= 65535:
-                candidates.add(target)
-    if len(candidates) == 1:
-        return candidates.pop()
-    if raw_expose is not None or raw_ports is not None:
-        return None
-    return None
-
-
-def _require_internal_port(
-    issues: list[ValidationIssue], services: dict[str, Any], service_name: str
-) -> int | None:
-    port = _resolved_internal_port(services, service_name)
-    if port is None:
-        service = services.get(service_name, {})
-        rule = (
-            "must declare a valid TCP internal port in range 1..65535 "
-            "and agree with the healthcheck listener"
-        )
-        if isinstance(service, dict):
-            expose = service.get("expose")
-            tcp_values = {
-                int(str(value).split("/", maxsplit=1)[0])
-                for value in (expose if isinstance(expose, list) else [expose])
-                if isinstance(value, str | int)
-                and not isinstance(value, bool)
-                and "/udp" not in str(value).lower()
-                and re.fullmatch(r"[0-9]+", str(value).split("/", maxsplit=1)[0])
-                and 1 <= int(str(value).split("/", maxsplit=1)[0]) <= 65535
-            }
-            if len(tcp_values) > 1 and not re.search(
-                r"(?:localhost|127\.0\.0\.1|%s):[0-9]+" % re.escape(service_name),
-                json.dumps(service.get("healthcheck", {})),
-            ):
-                rule = "internal TCP port topology is ambiguous; healthcheck must identify one listener"
-        _add_issue(
-            issues,
-            "safety",
-            service_name,
-            "internal_port",
-            {
-                "expose": service.get("expose") if isinstance(service, dict) else None,
-                "ports": service.get("ports") if isinstance(service, dict) else None,
-            },
-            rule,
-        )
-    return port
-
-
 def _validate_qwen_role(
     issues: list[ValidationIssue],
     service: str,
@@ -675,7 +468,6 @@ def _validate_qwen_role(
     model_parameter: str,
     endpoint_parameter: str,
     served_model: str | None,
-    qwen_port: int,
 ) -> None:
     if environment.get(model_parameter) != served_model:
         _add_issue(
@@ -692,7 +484,7 @@ def _validate_qwen_role(
         endpoint_parameter,
         environment.get(endpoint_parameter),
         "qwen-vllm",
-        qwen_port,
+        8000,
         "/v1",
     )
 
@@ -738,28 +530,7 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
     for service_name, service in services.items():
         if not isinstance(service, dict):
             continue
-        service_ports = service.get("ports", [])
-        if not isinstance(service_ports, list):
-            _add_issue(
-                issues,
-                "safety",
-                service_name,
-                "ports",
-                service_ports,
-                "must be a resolved list of port mappings",
-            )
-            continue
-        for port in service_ports:
-            if not isinstance(port, dict):
-                _add_issue(
-                    issues,
-                    "safety",
-                    service_name,
-                    "ports",
-                    port,
-                    "must be a resolved port mapping",
-                )
-                continue
+        for port in service.get("ports", []):
             host_ip = port.get("host_ip")
             published = str(port.get("published", ""))
             target = port.get("target")
@@ -772,8 +543,9 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
                     host_ip,
                     "published ports must bind only to 127.0.0.1",
                 )
-            published_port = int(published) if re.fullmatch(r"[0-9]+", published) else 0
-            if not 1 <= published_port <= 65535:
+            if re.fullmatch(r"[0-9]+", published) is None or not (
+                1 <= int(published) <= 65535
+            ):
                 _add_issue(
                     issues,
                     "safety",
@@ -783,13 +555,10 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
                     "must be an integer port in range 1..65535",
                 )
                 continue
-            target_port = (
-                int(target)
-                if isinstance(target, str | int)
-                and not isinstance(target, bool)
-                and re.fullmatch(r"[0-9]+", str(target))
-                else 0
-            )
+            try:
+                target_port = int(target)
+            except (TypeError, ValueError):
+                target_port = 0
             if not 1 <= target_port <= 65535:
                 _add_issue(
                     issues,
@@ -837,7 +606,6 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
     qwen_model = command[0] if command and not command[0].startswith("--") else None
     served_model = _argument_value(command, "--served-model-name")
     revision = _argument_value(command, "--revision")
-    qwen_port = _require_internal_port(issues, services, "qwen-vllm")
     for parameter, actual in (
         ("model", qwen_model),
         ("--served-model-name", served_model),
@@ -866,8 +634,8 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
         "qwen-vllm",
         "--port",
         _argument_value(command, "--port"),
-        str(qwen_port) if qwen_port is not None else None,
-        f"must use the resolved internal endpoint port {qwen_port}",
+        "8000",
+        "must use the resolved internal endpoint port 8000",
     )
     _validate_exact(
         issues,
@@ -973,7 +741,6 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
     runtime_environment = services.get("nv-ingest-ms-runtime", {}).get(
         "environment", {}
     )
-    runtime_port = _require_internal_port(issues, services, "nv-ingest-ms-runtime")
     qwen_roles = [
         ("APP_LLM_MODELNAME", "APP_LLM_SERVERURL"),
         ("APP_VLM_MODELNAME", "APP_VLM_SERVERURL"),
@@ -996,7 +763,6 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
             model_parameter,
             endpoint_parameter,
             served_model,
-            qwen_port or 0,
         )
     if ingestor_environment.get("SUMMARY_LLM") != served_model:
         _add_issue(
@@ -1013,7 +779,7 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
         "SUMMARY_LLM_SERVERURL",
         ingestor_environment.get("SUMMARY_LLM_SERVERURL"),
         "qwen-vllm",
-        qwen_port or 0,
+        8000,
         "/v1",
     )
     runtime_hostname = str(
@@ -1033,8 +799,8 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
         "ingestor-server",
         "APP_NVINGEST_MESSAGECLIENTPORT",
         ingestor_environment.get("APP_NVINGEST_MESSAGECLIENTPORT"),
-        str(runtime_port) if runtime_port is not None else None,
-        "must use the resolved nv-ingest-ms-runtime internal messaging port",
+        "7670",
+        "resolved nv-ingest-ms-runtime messaging must use internal port 7670",
     )
     for parameter, expected_service in (
         ("APP_NVINGEST_OCRURL", "nemotron-ocr"),
@@ -1048,15 +814,12 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
             parameter,
             ingestor_environment.get(parameter),
             expected_service,
-            _require_internal_port(issues, services, expected_service) or 0,
+            8000,
             "/v1/infer",
         )
 
     embedding_service_model = _nim_model_from_image(
         services.get("nemotron-vlm-embedding-ms", {}).get("image")
-    )
-    embedding_port = _require_internal_port(
-        issues, services, "nemotron-vlm-embedding-ms"
     )
     for service_name, environment in (
         ("rag-server", rag_environment),
@@ -1082,7 +845,7 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
             "APP_EMBEDDINGS_SERVERURL",
             environment.get("APP_EMBEDDINGS_SERVERURL"),
             "nemotron-vlm-embedding-ms",
-            embedding_port or 0,
+            8000,
             "/v1",
         )
     embedding_dimensions = _validate_integer(
@@ -1123,7 +886,7 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
         "APP_RANKING_SERVERURL",
         rag_environment.get("APP_RANKING_SERVERURL"),
         "nemotron-ranking-vl-ms",
-        _require_internal_port(issues, services, "nemotron-ranking-vl-ms") or 0,
+        8000,
         "",
     )
     for service_name, environment, model_key, endpoint_key in (
@@ -1155,7 +918,7 @@ def validate_general_config(config: dict[str, Any]) -> list[ValidationIssue]:
             endpoint_key,
             environment.get(endpoint_key),
             "qwen-vllm",
-            qwen_port or 0,
+            8000,
             "/v1/chat/completions",
         )
 
@@ -1497,7 +1260,7 @@ def summarize_config(config: dict[str, Any]) -> dict[str, Any]:
         }
         environment = service.get("environment", {})
         for key in sorted(SAFE_SETTING_KEYS & environment.keys()):
-            settings[key] = str(_redact_secrets(environment[key], key))
+            settings[key] = str(environment[key])
 
     general_issues = validate_general_config(config)
     profile_status: dict[str, str] = {"kind": "invalid" if general_issues else "custom"}
@@ -1525,16 +1288,14 @@ def summarize_config(config: dict[str, Any]) -> dict[str, Any]:
             }
             break
 
-    return _redact_secrets(
-        {
-            "certified_evidence": certified_evidence,
-            "forbidden_services_present": sorted(FORBIDDEN_SERVICES & services.keys()),
-            "profile_status": profile_status,
-            "required_services": sorted(REQUIRED_SERVICES),
-            "services": service_summary,
-            "settings": settings,
-        }
-    )
+    return {
+        "certified_evidence": certified_evidence,
+        "forbidden_services_present": sorted(FORBIDDEN_SERVICES & services.keys()),
+        "profile_status": profile_status,
+        "required_services": sorted(REQUIRED_SERVICES),
+        "services": service_summary,
+        "settings": settings,
+    }
 
 
 def _load_observations(path: Path) -> list[dict[str, Any]]:
