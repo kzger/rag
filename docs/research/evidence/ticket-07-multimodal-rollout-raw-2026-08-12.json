@@ -1,0 +1,406 @@
+{
+  "variant": "final-rollout",
+  "dataset": {
+    "version": "jorjin-glasses-weak-query-v1",
+    "manifest": "multimodal_accuracy_cases.json",
+    "manifest_sha256": "f90205ce3bd41b4766544e8288502a50f9c7d8001a7e7fad9c70dba0667f2687",
+    "coverage": {
+      "required": [
+        "weak-query",
+        "ocr-model",
+        "similar-products",
+        "consecutive-images",
+        "knowledge-base-no-match",
+        "no-text-product",
+        "deliberate-ambiguity"
+      ],
+      "present": [
+        "consecutive-images",
+        "deliberate-ambiguity",
+        "knowledge-base-no-match",
+        "no-text-product",
+        "ocr-model",
+        "similar-products",
+        "weak-query"
+      ]
+    },
+    "ambiguity": {
+      "required": true,
+      "present": true,
+      "reason": "The manifest reuses the checked-in company logo asset for a deliberately ambiguous model-choice prompt. A logo identifies the company but cannot uniquely support either J7EF Plus or J10A.",
+      "safe_outcome": "abstain_or_reject",
+      "ground_truth_asset": "../../image/logo_max.png"
+    },
+    "assets": [
+      {
+        "path": "../../data/multimodal/Creme_clutch_purse1-small.jpg",
+        "sha256": "f6c76cf9b08d40c403eb2de72f6eb7d7b422cfe5ea42ec742d12cadf087821dd"
+      },
+      {
+        "path": "../../image/j10a-ocr-fixture.png",
+        "sha256": "e9a2bc58e232e13149dab20a98aef2af02fc8704c04c9360b0ab922d5f8fb122"
+      },
+      {
+        "path": "../../image/j7ef-plus-ocr-fixture.png",
+        "sha256": "dc332c37db5670c2a7829d2f0532f7584df86c65f1d714f3f858d85551c35710"
+      },
+      {
+        "path": "../../image/j7ef-plus.jpg",
+        "sha256": "ab014e691c8c5cbed08417341b6a2a313f4cab3e6182febb72689dc69134696b"
+      },
+      {
+        "path": "../../image/logo_max.png",
+        "sha256": "46b409c59488b9a079fc7cac5e3dd505635ddc40b712522535d990befdbcbd20"
+      }
+    ]
+  },
+  "configuration": {
+    "model": "Qwen/Qwen3.6-27B-FP8",
+    "collection": "jorjin_glasses",
+    "vdb_top_k": 100,
+    "reranker_top_k": 5,
+    "endpoint": "http://127.0.0.1:8081",
+    "request_fields": {
+      "collection_names": [
+        "jorjin_glasses"
+      ],
+      "model": "Qwen/Qwen3.6-27B-FP8",
+      "vdb_top_k": 100,
+      "reranker_top_k": 5,
+      "vlm_temperature": null,
+      "vlm_temperature_sent": false
+    },
+    "server_deployment": {
+      "provenance": "explicit-file-complete",
+      "settings": {
+        "ENABLE_QUERY_UNDERSTANDING": true,
+        "MULTIMODAL_VISUAL_CANDIDATES": 5,
+        "MULTIMODAL_TEXT_CANDIDATES": 5,
+        "MULTIMODAL_MAX_CANDIDATES": 5,
+        "MULTIMODAL_VISUAL_WEIGHT": 0.5,
+        "MULTIMODAL_TEXT_WEIGHT": 0.5,
+        "MULTIMODAL_RRF_K": 60,
+        "MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS": 512,
+        "MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE": 0.0,
+        "APP_VECTORSTORE_SEARCHTYPE": "dense",
+        "APP_VECTORSTORE_RANKER_TYPE": "rrf",
+        "APP_VECTORSTORE_DENSE_WEIGHT": 0.5,
+        "APP_VECTORSTORE_SPARSE_WEIGHT": 0.5,
+        "APP_VECTORSTORE_EF": 100,
+        "VECTOR_DB_TOPK": 100,
+        "APP_RETRIEVER_TOPK": 5,
+        "RERANKER_SCORE_THRESHOLD": 0.0,
+        "APP_VLM_TEMPERATURE": 0.6,
+        "APP_VLM_TOP_P": 0.95,
+        "APP_VLM_MAX_TOKENS": 8192,
+        "APP_VLM_MAX_TOTAL_IMAGES": 3,
+        "APP_VLM_ENABLE_THINKING": false,
+        "APP_VLM_THINKING_TOKEN_BUDGET": 16384,
+        "ENABLE_MULTIMODAL_ACCURACY": true,
+        "ENABLE_MULTIMODAL_VERIFICATION_GATE": true,
+        "MULTIMODAL_VERIFICATION_MAX_CANDIDATES": 2,
+        "MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE": 0.8,
+        "MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE": 0.8,
+        "MULTIMODAL_VERIFICATION_MAX_TOKENS": 512,
+        "MULTIMODAL_VERIFICATION_TEMPERATURE": 0.0,
+        "ENABLE_MULTIMODAL_ABSTENTION_PROMPT": true,
+        "VLM_TO_LLM_FALLBACK": false
+      },
+      "unavailable_keys": []
+    },
+    "calibration": {
+      "raw_and_rrf_thresholds": "telemetry-only",
+      "status": "run-metadata-only",
+      "vlm_temperature": {
+        "status": "not-selected",
+        "reason": "Selection belongs to the comparison/evidence report.",
+        "selected": null
+      }
+    }
+  },
+  "metric_definitions": {
+    "candidate_retrieval_hit_at_k": "Fraction of cases with an expected source among the ordered candidates returned by the public /v1/search probe; K is configuration.reranker_top_k.",
+    "verified_identification_accuracy": "Fraction of identifiable cases whose answer contains an annotated accepted identity, contains no annotated forbidden term, does not deny the identity, and whose /v1/search candidates and /v1/generate citations both contain an expected source. Denial is matched as a phrase (a negator bound to 'the same product' or to an accepted model term), not as a bare substring, so a negation used in passing in an otherwise correct answer does not count. This lexical value is a lexical diagnostic only; the adjudicated report replaces it with manual verdicts, which are authoritative.",
+    "unsupported_claim_rate": "Case-level lexical diagnostic: fraction of outputs that fail an annotated identity, contain an annotated forbidden claim, or fail to reject a case annotated as no-match. The adjudicated report replaces it with manually reviewed atomic-claim counts.",
+    "low_confidence_rejection_precision_recall": "Precision and recall of configured rejection phrases against cases annotated expected_rejection=true.",
+    "rejection_citation_leak_rate": "Fraction of expected-rejection cases that emitted any citation; expected value is zero.",
+    "retrieval_latency": "Wall-clock latency of the public /v1/search candidate probe."
+  },
+  "metrics": {
+    "case_count": 9,
+    "candidate_retrieval_hit_at_k": 1.0,
+    "verified_identification_accuracy": 0.75,
+    "unsupported_claim_rate": 0.1111111111111111,
+    "low_confidence_rejection_precision": 1.0,
+    "low_confidence_rejection_recall": 1.0,
+    "rejection_citation_leak_rate": 0.0,
+    "latency_seconds": {
+      "retrieval": {
+        "p50": 0.5203830269165337,
+        "p95": 1.3735369775444268,
+        "mean": 0.736292726903533
+      },
+      "ttft": {
+        "p50": 7.079725325806066,
+        "p95": 8.873999984143301,
+        "mean": 7.479581272384773
+      },
+      "total": {
+        "p50": 7.079887498868629,
+        "p95": 11.186417532991618,
+        "mean": 8.357896522101429
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "j7ef-weak-what",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的文件名稱「JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3」以及圖片顯示的外觀，這是一款由 **JORJIN TECHNOLOGIES（巨匠科技）** 生產的 **J7EF Puls** 產品。\n\n從圖片特徵來看：\n*   **外觀設計**：它是一個黑色的頭戴式裝置，具有類似眼鏡或輕型頭盔的結構。\n*   **品牌標誌**：在裝置右側可以看到紅色的 **\"JREALITY\"** 字樣，這是該產品的系列名稱或品牌標識。\n*   **功能部件**：前方有一個透明的顯示窗口區域，暗示這可能是一款 **光波導顯示器（Waveguide Display）** 或 **AR（增強實境）眼鏡**，用於將影像直接投射到使用者眼前。\n*   **材質**：頭帶部分有類碳纖維的紋理設計，看起來兼具輕量化與耐用性。\n\n綜合來說，這是一個 **J7EF Puls AR眼鏡** 或 **頭戴式顯示器**。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 8.48208440002054,
+      "total_seconds": 11.208894344978034,
+      "search_seconds": 0.5203830269165337,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j7ef-pronoun-confirmation",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據您提供的圖片與上下文資訊，**是的，這是 J7EF Plus 產品的一部分**。\n\n具體說明如下：\n\n1.  **產品名稱匹配**：上下文標題為「JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3」（註：PULS 應為 Plus 的拼寫誤差），且圖片說明中提到「圖 1: J7EF Plus」、「圖 2: J7EF Plus」。\n2.  **Logo 識別**：在您提供的圖片右下角，可以清楚看到紅色的 **「JORJIN」** 品牌標誌，這與上下文中的公司名稱「JORJIN TECHNOLOGIES」相符。\n3.  **產品類型**：雖然上下文文字描述中提到了 VR 頭顯和耳機，但您上傳的圖片實際上是一款**頭戴式顯示器（Head-Mounted Display, HMD）**，通常用於工業檢測、維修或醫療等領域（而非消費級 VR 遊戲）。這類設備常被歸類在廣義的頭戴顯示技術中。該圖片展示的黑色頭帶、碳纖維紋理設計以及側邊的顯示模組，符合 JORJIN（京辰科技）J7 系列頭戴顯示器的外觀特徵。\n\n因此，這張圖片確實是 **JORJIN J7EF Plus 頭戴顯示器** 的產品圖。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=2",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 7.684095636941493,
+      "total_seconds": 11.152702315011993,
+      "search_seconds": 0.47042084904387593,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j7ef-ocr-brand-model",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片和上下文資訊：\n\n*   **型號 (Model):** 圖片上清晰可見的白色標籤標示著 **J7EF PLUS**。\n*   **品牌 (Brand):** 根據提供的文件檔名 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3`，該產品的品牌為 **JORJIN TECHNOLOGIES**。\n\n因此，這款產品的完整資訊為 **JORJIN TECHNOLOGIES** 品牌的 **J7EF PLUS** 型號。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=2"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 8.67231961293146,
+      "total_seconds": 9.958266332978383,
+      "search_seconds": 0.9263294679112732,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j10a-similar-model-disambiguation",
+      "expected_sources": [
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=2"
+      ],
+      "accepted_answer_terms": [
+        "J10A"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片，這個產品的型號是 **J10A**。\n\n在頭戴裝置正面的白色標籤上，清楚地印有文字「MODEL J10A」。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "J10A Sales kit.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=2"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=4"
+      ],
+      "ttft_seconds": 9.008453564951196,
+      "total_seconds": 9.431107270997018,
+      "search_seconds": 0.8102372388821095,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "logo-weak-what",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "知識庫無法確認此圖片對應的項目，未提供確定的產品身份。 The knowledge base cannot confirm a matching item.",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5"
+      ],
+      "citations": [],
+      "ttft_seconds": 7.079725325806066,
+      "total_seconds": 7.079887498868629,
+      "search_seconds": 1.1996260990854353,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": true
+    },
+    {
+      "case_id": "logo-pronoun-confirmation",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "知識庫無法確認此圖片對應的項目，未提供確定的產品身份。 The knowledge base cannot confirm a matching item.",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5"
+      ],
+      "citations": [],
+      "ttft_seconds": 6.760842727031559,
+      "total_seconds": 6.761037504998967,
+      "search_seconds": 0.39827476791106164,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": true
+    },
+    {
+      "case_id": "consecutive-image-isolation-baseline",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "知識庫無法確認此圖片對應的項目，未提供確定的產品身份。 The knowledge base cannot confirm a matching item.",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=4",
+        "J10A Sales kit.pdf#page=7",
+        "J10A Sales kit.pdf#page=5"
+      ],
+      "citations": [],
+      "ttft_seconds": 6.895483024884015,
+      "total_seconds": 6.895640166010708,
+      "search_seconds": 0.3910282461438328,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": true
+    },
+    {
+      "case_id": "no-text-product-no-match",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "知識庫無法確認此圖片對應的項目，未提供確定的產品身份。 The knowledge base cannot confirm a matching item.",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3",
+        "J10A Sales kit.pdf#page=7",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=4",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=5",
+        "J10A Sales kit.pdf#page=4"
+      ],
+      "citations": [],
+      "ttft_seconds": 5.7082156168762594,
+      "total_seconds": 5.708330634981394,
+      "search_seconds": 1.4894775631837547,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORJIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": true
+    },
+    {
+      "case_id": "logo-deliberate-ambiguity",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "無法唯一判定此圖片對應的知識庫項目；以下僅列出具體身份證據支持的候選：沒有足夠的身份證據。 I cannot uniquely identify the item from the selected knowledge base.",
+      "candidate_sources": [
+        "產品問答.pdf#page=1",
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=9",
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=1",
+        "J10A Sales kit.pdf#page=4"
+      ],
+      "citations": [],
+      "ttft_seconds": 7.025011542020366,
+      "total_seconds": 7.025202630087733,
+      "search_seconds": 0.4208572830539197,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": true
+    }
+  ]
+}

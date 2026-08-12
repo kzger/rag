@@ -1,0 +1,288 @@
+{
+  "ticket": "07-rollout-and-co-residency-validation",
+  "artifact_type": "compact-non-sensitive-rollout-evidence",
+  "date": "2026-08-12",
+  "status": "partial-with-open-validation-criteria",
+  "commit_worktree_caveat": {
+    "observed_commit": "b717d0a docs(rag): add pre-flight inventory to ticket 07",
+    "worktree": "not_clean",
+    "note": "Pre-existing changes exist outside the three permitted files; this is not a clean-worktree certification."
+  },
+  "evidence_identity": {
+    "dataset_version": "jorjin-glasses-weak-query-v1",
+    "manifest": "multimodal_accuracy_cases.json",
+    "manifest_sha256": "f90205ce3bd41b4766544e8288502a50f9c7d8001a7e7fad9c70dba0667f2687",
+    "model": "Qwen/Qwen3.6-27B-FP8",
+    "collection": "jorjin_glasses",
+    "server_provenance": "explicit-file-complete",
+    "vlm_temperature": 0.6,
+    "vlm_temperature_unchanged": true
+  },
+  "live_settings": {
+    "APP_RETRIEVER_TOPK": 5,
+    "APP_VECTORSTORE_DENSE_WEIGHT": 0.5,
+    "APP_VECTORSTORE_EF": 100,
+    "APP_VECTORSTORE_RANKER_TYPE": "rrf",
+    "APP_VECTORSTORE_SEARCHTYPE": "dense",
+    "APP_VECTORSTORE_SPARSE_WEIGHT": 0.5,
+    "APP_VLM_ENABLE_THINKING": false,
+    "APP_VLM_MAX_TOKENS": 8192,
+    "APP_VLM_MAX_TOTAL_IMAGES": 3,
+    "APP_VLM_TEMPERATURE": 0.6,
+    "APP_VLM_THINKING_TOKEN_BUDGET": 16384,
+    "APP_VLM_TOP_P": 0.95,
+    "ENABLE_MULTIMODAL_ABSTENTION_PROMPT": true,
+    "ENABLE_MULTIMODAL_ACCURACY": true,
+    "ENABLE_MULTIMODAL_VERIFICATION_GATE": true,
+    "ENABLE_QUERY_UNDERSTANDING": true,
+    "MULTIMODAL_MAX_CANDIDATES": 5,
+    "MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS": 512,
+    "MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE": 0.0,
+    "MULTIMODAL_RRF_K": 60,
+    "MULTIMODAL_TEXT_CANDIDATES": 5,
+    "MULTIMODAL_TEXT_WEIGHT": 0.5,
+    "MULTIMODAL_VERIFICATION_MAX_CANDIDATES": 2,
+    "MULTIMODAL_VERIFICATION_MAX_TOKENS": 512,
+    "MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE": 0.8,
+    "MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE": 0.8,
+    "MULTIMODAL_VERIFICATION_TEMPERATURE": 0.0,
+    "MULTIMODAL_VISUAL_CANDIDATES": 5,
+    "MULTIMODAL_VISUAL_WEIGHT": 0.5,
+    "RERANKER_SCORE_THRESHOLD": 0.0,
+    "VECTOR_DB_TOPK": 100,
+    "VLM_TO_LLM_FALLBACK": false
+  },
+  "quality": {
+    "verified_identification_accuracy_kind": "lexical_evaluator_metric",
+    "manual_adjudication_is_separate": true,
+    "verified_identification_identifiable_cases": 4,
+    "verified_identification_evaluator_passes": 3,
+    "verified_identification_lexical_miss": "j10a-similar-model-disambiguation; expected source pages 1/2 were not present in citations, which cite page 4",
+    "case_count": 9,
+    "candidate_retrieval_hit_at_k": 1.0,
+    "verified_identification_accuracy": 0.75,
+    "unsupported_claim_rate": 0.1111111111,
+    "low_confidence_rejection_precision": 1.0,
+    "low_confidence_rejection_recall": 1.0,
+    "rejection_citation_leak_rate": 0.0,
+    "latency_seconds": {
+      "retrieval": {
+        "p50": 0.5203830269,
+        "p95": 1.3735369775
+      },
+      "ttft": {
+        "p50": 7.0797253258,
+        "p95": 8.8739999841
+      },
+      "total": {
+        "p50": 7.0798874989,
+        "p95": 11.186417533
+      }
+    },
+    "provenance_complete": true
+  },
+  "stage_timing_evidence": {
+    "status": "available",
+    "raw_source": "docs/research/evidence/ticket-07-stage-timings-raw-2026-08-12.json",
+    "counts_and_p50_ms": {
+      "query_understanding": {
+        "count": 9,
+        "p50": 1783.8
+      },
+      "visual_retrieval": {
+        "count": 9,
+        "p50": 530.7
+      },
+      "text_retrieval": {
+        "count": 9,
+        "p50": 79.7
+      },
+      "fusion": {
+        "count": 9,
+        "p50": 0.9
+      },
+      "verification": {
+        "count": 9,
+        "p50": 4437.9
+      },
+      "generation_completed": {
+        "count": 4,
+        "p50": 2886.8
+      }
+    }
+  },
+  "case_facts": {
+    "positive_cases": [
+      {
+        "case_id": "j7ef-weak-what",
+        "identity": "J7EF Plus",
+        "accepted_identity": true,
+        "forbidden_terms_absent": true,
+        "lexical_denial": false,
+        "expected_source_in_candidates": true,
+        "expected_source_in_citations": true,
+        "evaluator_pass": true
+      },
+      {
+        "case_id": "j7ef-pronoun-confirmation",
+        "identity": "J7EF Plus",
+        "accepted_identity": true,
+        "forbidden_terms_absent": true,
+        "lexical_denial": false,
+        "expected_source_in_candidates": true,
+        "expected_source_in_citations": true,
+        "evaluator_pass": true,
+        "manual_note": "Opening denial is a separate manual-review concern and is not a lexical denial match under the metric definition."
+      },
+      {
+        "case_id": "j7ef-ocr-brand-model",
+        "identity": "J7EF Plus",
+        "accepted_identity": true,
+        "forbidden_terms_absent": true,
+        "lexical_denial": false,
+        "expected_source_in_candidates": true,
+        "expected_source_in_citations": true,
+        "evaluator_pass": true
+      },
+      {
+        "case_id": "j10a-similar-model-disambiguation",
+        "identity": "J10A",
+        "accepted_identity": true,
+        "forbidden_terms_absent": true,
+        "lexical_denial": false,
+        "expected_source_in_candidates": true,
+        "expected_source_in_citations": false,
+        "evaluator_pass": false,
+        "miss_reason": "Citation is page 4; annotated expected sources are pages 1/2."
+      }
+    ],
+    "rejection_cases": [
+      {
+        "case_id": "logo-weak-what",
+        "outcome": "no_match",
+        "behavior_pass": true,
+        "citation_count": 0
+      },
+      {
+        "case_id": "logo-pronoun-confirmation",
+        "outcome": "no_match",
+        "behavior_pass": true,
+        "citation_count": 0
+      },
+      {
+        "case_id": "consecutive-image-isolation-baseline",
+        "outcome": "no_match",
+        "consecutive_image_isolation_pass": true,
+        "behavior_pass": true,
+        "citation_count": 0
+      },
+      {
+        "case_id": "no-text-product-no-match",
+        "outcome": "no_match",
+        "no_match_pass": true,
+        "behavior_pass": true,
+        "citation_count": 0
+      },
+      {
+        "case_id": "logo-deliberate-ambiguity",
+        "outcome": "ambiguous_or_reject",
+        "safe_outcome": true,
+        "behavior_pass": true,
+        "citation_count": 0
+      }
+    ]
+  },
+  "endpoint_checks": {
+    "frontend_http_status": 200,
+    "no_collection_http_status": 400,
+    "no_collection_normal_sse": true,
+    "no_collection_citation_count": 0,
+    "public_endpoint_eval": "WebUI-equivalent; no literal browser automation claimed",
+    "bad_vlm_endpoint_injection": "ineffective; server behavior continued normally",
+    "live_downstream_failure_injection": "unestablished"
+  },
+  "co_residency": {
+    "configured_load_launch_window_seconds": 300,
+    "overall_run_elapsed_seconds": 408.4,
+    "interval_utc": {
+      "start": "2026-08-12T19:23:16Z",
+      "end": "2026-08-12T19:30:04Z"
+    },
+    "sample_count": 21,
+    "text_http_stream_success": "2/2",
+    "image_http_stream_success": "2/2",
+    "blocking_ingestion_http_success_and_cleanup": "4/4",
+    "gpu_peak_used_mib": 72728,
+    "gpu_min_free_mib": 8352,
+    "gpu_peak_utilization_percent": 100,
+    "dependency_health": "200 for all sampled dependency codes",
+    "required_container_status": "running for every sample",
+    "restart_values": "0 throughout",
+    "oom_fatal_scan": {
+      "status": "available",
+      "raw_source": "docs/research/evidence/ticket-07-oom-scan-raw-2026-08-12.json",
+      "services_scanned": 7,
+      "match_count": 0
+    }
+  },
+  "validation_evidence": {
+    "status": "command-result-observations-only; raw logs unavailable",
+    "full_ci_aligned_unit_suite": "2167 passed, 1 xfailed",
+    "initial_unfiltered_suite": "3 missing proprietary nemo_retriever collection errors; CI excludes those paths",
+    "pre_commit": "passed after one frontend timeout flake was reproduced as 742/742 on rerun",
+    "reported_targeted_results": {
+      "multimodal_accuracy": "17 passed",
+      "eval_tests": "40 passed",
+      "compose_parity": "33 passed",
+      "resolved_compose_config": "quiet"
+    },
+    "review": {
+      "standards": "PASS",
+      "spec": "PASS",
+      "orchestrator_final_review": "pending"
+    }
+  },
+  "rollback": {
+    "verification_gate_off": "Set ENABLE_MULTIMODAL_VERIFICATION_GATE=false to disable verification only; staged retrieval remains enabled.",
+    "staged_accuracy_off": "Set ENABLE_MULTIMODAL_ACCURACY=false to restore the complete legacy path.",
+    "restart_required": true,
+    "reason": "Environment values are read when the container starts."
+  },
+  "raw_evidence": [
+    {
+      "path": "docs/research/evidence/ticket-07-multimodal-rollout-raw-2026-08-12.json",
+      "sha256": "fdcce2b8f0eb605521ebeb5bd22436095eadad5bff3adaf2ae57e43a715d706b",
+      "audit_note": "Final rollout raw artifact."
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-live-settings-raw-2026-08-12.json",
+      "sha256": "22f8c2b00a48490e782dbf8097038c0f24e15d6dd5fa5f4673fff079c70212e3",
+      "audit_note": "Sanitized live settings raw artifact."
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-co-residency-raw-2026-08-12.json",
+      "sha256": "4c84a9661621040b555f25aab5da7355ac32866a00f0e55bde4fec915fe3b782",
+      "audit_note": "Final raw artifact preserving all 21 per-sample container, restart, GPU, dependency-health, and traffic records."
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-stage-timings-raw-2026-08-12.json",
+      "sha256": "80e411061a5cbf9677d8f7d2835d842657acd1f4f05bfdd5fd1b4ab766b4b069",
+      "audit_note": "Final stage timing samples and medians."
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-oom-scan-raw-2026-08-12.json",
+      "sha256": "f2bcd49946a36bfc7be8090639336cb68fff0a2e4629d8634588427a6e073ab3",
+      "audit_note": "Final seven-service OOM/fatal scan."
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-verification-raw-2026-08-12.json",
+      "sha256": "b160b566d7b54eed22ba84c07e678292e330faa6f11c6d804b813af69e41488b",
+      "audit_note": "Final verification reconciliation and review status."
+    }
+  ],
+  "source_artifacts": [
+    "docs/research/evidence/ticket-07-multimodal-rollout-raw-2026-08-12.json",
+    "docs/research/evidence/ticket-07-live-settings-raw-2026-08-12.json",
+    "docs/research/evidence/ticket-07-co-residency-raw-2026-08-12.json"
+  ]
+}

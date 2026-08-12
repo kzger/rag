@@ -1,0 +1,71 @@
+{
+  "schema_version": "ticket07-verification-raw-v1",
+  "ticket": "07-rollout-and-co-residency-validation",
+  "date": "2026-08-12",
+  "artifact_type": "sanitized-verification-availability-record",
+  "source_artifacts": [
+    {
+      "path": "docs/research/evidence/ticket-07-multimodal-rollout-raw-2026-08-12.json",
+      "sha256": "fdcce2b8f0eb605521ebeb5bd22436095eadad5bff3adaf2ae57e43a715d706b"
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-co-residency-raw-2026-08-12.json",
+      "sha256": "4c84a9661621040b555f25aab5da7355ac32866a00f0e55bde4fec915fe3b782"
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-stage-timings-raw-2026-08-12.json",
+      "sha256": "80e411061a5cbf9677d8f7d2835d842657acd1f4f05bfdd5fd1b4ab766b4b069"
+    },
+    {
+      "path": "docs/research/evidence/ticket-07-oom-scan-raw-2026-08-12.json",
+      "sha256": "f2bcd49946a36bfc7be8090639336cb68fff0a2e4629d8634588427a6e073ab3"
+    }
+  ],
+  "stage_timing_evidence": {
+    "status": "available",
+    "raw_timing_samples_present": true,
+    "raw_artifact": "docs/research/evidence/ticket-07-stage-timings-raw-2026-08-12.json",
+    "counts_and_p50_ms": {
+      "query_understanding": {"count": 9, "p50": 1783.8},
+      "visual_retrieval": {"count": 9, "p50": 530.7},
+      "text_retrieval": {"count": 9, "p50": 79.7},
+      "fusion": {"count": 9, "p50": 0.9},
+      "verification": {"count": 9, "p50": 4437.9},
+      "generation_completed": {"count": 4, "p50": 2886.8}
+    }
+  },
+  "oom_fatal_evidence": {
+    "status": "available",
+    "raw_artifact": "docs/research/evidence/ticket-07-oom-scan-raw-2026-08-12.json",
+    "terms": ["out of memory", "cuda oom", "fatal worker", "killed process"],
+    "scan_scope": "7 required services",
+    "match_counts": "0 for every scanned service"
+  },
+  "test_result_evidence": {
+    "status": "command-result-observations-only",
+    "raw_logs_present": false,
+    "observations": {
+      "full_ci_aligned_unit_suite": "2167 passed, 1 xfailed",
+      "initial_unfiltered_suite": "3 missing proprietary nemo_retriever collection errors; CI excludes those paths",
+      "pre_commit": "passed after one frontend timeout flake was reproduced as 742/742 on rerun",
+      "targeted_multimodal_accuracy": "17 passed",
+      "targeted_eval": "40 passed",
+      "targeted_compose_parity": "33 passed"
+    }
+  },
+  "review_status": {"standards": "PASS", "spec": "PASS"},
+  "metric_case_check": {
+    "metric": "verified_identification_accuracy",
+    "definition": "Lexical evaluator predicate: accepted identity present, forbidden terms absent, lexical denial predicate false, expected source present in candidates, and expected source present in citations.",
+    "identifiable_cases": 4,
+    "evaluator_passes": 3,
+    "evaluator_accuracy": 0.75,
+    "case_results": {
+      "j7ef-weak-what": {"accepted_identity": true, "forbidden_terms_absent": true, "lexical_denial": false, "expected_source_in_candidates": true, "expected_source_in_citations": true, "evaluator_pass": true},
+      "j7ef-pronoun-confirmation": {"accepted_identity": true, "forbidden_terms_absent": true, "lexical_denial": false, "expected_source_in_candidates": true, "expected_source_in_citations": true, "evaluator_pass": true, "manual_note": "The opening denial is a separate manual-review concern; it is not a lexical denial match under the supplied metric definition."},
+      "j7ef-ocr-brand-model": {"accepted_identity": true, "forbidden_terms_absent": true, "lexical_denial": false, "expected_source_in_candidates": true, "expected_source_in_citations": true, "evaluator_pass": true},
+      "j10a-similar-model-disambiguation": {"accepted_identity": true, "forbidden_terms_absent": true, "lexical_denial": false, "expected_source_in_candidates": true, "expected_source_in_citations": false, "evaluator_pass": false, "miss_reason": "The citation is J10A Sales kit page 4, while the annotated expected sources are pages 1 and 2."}
+    },
+    "manual_vs_lexical_note": "The 0.75 value is the lexical evaluator metric. Manual groundedness/adjudication comments are separate and must not be substituted for these booleans."
+  }
+}

@@ -492,14 +492,25 @@ rank, generic visual similarity, category, or logo alone.
 
 All of these flags default to `false`, including when `ENABLE_MULTIMODAL_ACCURACY`
 is enabled, so the legacy pipeline remains the fallback. Verification decisions are
-logged as `Verifier judgment`, `Bridge matches`, and `Verification outcome` lines
-carrying structured fields only — never image URIs or base64 payloads.
+logged as `Verifier judgment`, `Bridge matches`, and `Verification outcome` lines.
+Those decision fields exclude image URIs and base64 payloads; this does not imply that
+other existing log lines globally sanitize query, evidence, endpoint, or secret text.
 
 ### Which settings reach the container
 
 `deploy/compose/docker-compose-rag-server.yaml` declares no `env_file`, so its explicit
-`environment:` block is the whole contract — a variable absent from that list has no
-effect on the container even when exported in `deploy/compose/.env`.
+`environment:` block is the whole contract. The current Compose deployment forwards all
+14 multimodal tunables, and matching keys exist in Helm for parity:
+`ENABLE_QUERY_UNDERSTANDING`, `MULTIMODAL_VISUAL_CANDIDATES`,
+`MULTIMODAL_TEXT_CANDIDATES`, `MULTIMODAL_MAX_CANDIDATES`,
+`MULTIMODAL_VISUAL_WEIGHT`, `MULTIMODAL_TEXT_WEIGHT`, `MULTIMODAL_RRF_K`,
+`MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS`,
+`MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE`,
+`MULTIMODAL_VERIFICATION_MAX_CANDIDATES`,
+`MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE`,
+`MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE`,
+`MULTIMODAL_VERIFICATION_MAX_TOKENS`, and
+`MULTIMODAL_VERIFICATION_TEMPERATURE`.
 
 Tunable today in the Compose deployment:
 
@@ -511,23 +522,31 @@ Tunable today in the Compose deployment:
 | `APP_VLM_MAX_TOTAL_IMAGES` | Image budget the gate is sized against (default 3) |
 | `APP_VLM_TEMPERATURE` | VLM generation temperature |
 
-Read from the environment by `configuration.py` but **not currently forwarded by
-Compose**, so they stay at their code defaults: `MULTIMODAL_VISUAL_CANDIDATES` (5),
-`MULTIMODAL_TEXT_CANDIDATES` (5), `MULTIMODAL_MAX_CANDIDATES` (5),
-`MULTIMODAL_VISUAL_WEIGHT` (0.5), `MULTIMODAL_TEXT_WEIGHT` (0.5), `MULTIMODAL_RRF_K`
-(60), `MULTIMODAL_VERIFICATION_MAX_CANDIDATES` (2),
-`MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE` (0.80),
-`MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE` (0.80),
-`MULTIMODAL_VERIFICATION_MAX_TOKENS` (512) and `MULTIMODAL_VERIFICATION_TEMPERATURE`
-(0.0). To tune any of these, add it to the compose `environment:` block first — and add
-the matching key to `deploy/helm/nvidia-blueprint-rag/values.yaml`, which the
-`test_compose_helm_parity` unit test enforces.
+All listed values are forwarded to the container now; they are not merely evaluator-host
+environment variables. Helm carries the same keys, and Compose/Helm parity is enforced by
+the corresponding parity test.
 
 Verify what a running server actually resolved with:
 
 ```bash
 docker exec rag-server env | grep MULTIMODAL
 ```
+
+### Rollback and restart
+
+Set `ENABLE_MULTIMODAL_VERIFICATION_GATE=false` to disable verification only; staged
+retrieval remains enabled. Set `ENABLE_MULTIMODAL_ACCURACY=false` to restore the complete
+legacy path. Recreate or restart the RAG server container after either change: these
+settings are read at container start and are not applied to an already-running process.
+
+### Rollout observability
+
+The final Ticket-07 evidence includes raw per-stage timing samples: query understanding,
+visual retrieval, text retrieval, fusion, verification, and completed generation. The
+generation interval is raw stream start through completion, including TTFT; abstention
+cases stop after verification and have no final generation log. The new timing line is
+intended to exclude image/base64/response content. This is not a claim that all existing
+logs globally sanitize query text, evidence text, endpoint text, or secrets.
 
 ### Calibrated values
 
@@ -550,10 +569,13 @@ win with a second run before adopting it.
 | `MULTIMODAL_VISUAL/TEXT/MAX_CANDIDATES` | `5` | 3-5 | 3 and 5 were indistinguishable in both accuracy and latency. |
 | `MULTIMODAL_VISUAL_WEIGHT` / `TEXT_WEIGHT` / `RRF_K` | `0.5` / `0.5` / `60` | — | Not varied; no evidence either way. |
 
-The verification stage costs ~4.4 s of a ~7 s TTFT and that cost is **decode-bound, not
-image-bound**: halving the output budget moved it to 3.56 s, while downscaling every image
-moved it not at all. Since the output budget cannot be reduced without losing accuracy, the
-gate's latency is the price of the rejection guarantee. Turning
+An earlier calibration artifact reported a verification stage of roughly 4.4 s in its
+separate timing evidence; Ticket-07's durable raw artifact does not contain those stage
+samples, so this document does not claim that value as a current rollout measurement.
+That earlier analysis characterized the cost as **decode-bound, not image-bound**: halving
+the output budget moved it to 3.56 s, while downscaling every image moved it not at all.
+Since the output budget cannot be reduced without losing accuracy, the gate's latency is
+the price of the rejection guarantee. Turning
 `ENABLE_MULTIMODAL_VERIFICATION_GATE` off is the only large saving available, and it forfeits
 that guarantee.
 

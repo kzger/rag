@@ -1,0 +1,1219 @@
+{
+  "duration_seconds": 300,
+  "ended_at_utc": "2026-08-12T19:30:04Z",
+  "samples": [
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 0.1,
+      "gpu": "2026/08/12 19:23:16.194, 0, 72728, 8352, 0",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 15.3,
+      "gpu": "2026/08/12 19:23:31.392, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 30.5,
+      "gpu": "2026/08/12 19:23:46.582, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 45.7,
+      "gpu": "2026/08/12 19:24:01.779, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 60.9,
+      "gpu": "2026/08/12 19:24:16.938, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 76.1,
+      "gpu": "2026/08/12 19:24:32.128, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 91.3,
+      "gpu": "2026/08/12 19:24:47.315, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 106.5,
+      "gpu": "2026/08/12 19:25:02.509, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 121.7,
+      "gpu": "2026/08/12 19:25:17.707, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 136.8,
+      "gpu": "2026/08/12 19:25:32.888, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 152.0,
+      "gpu": "2026/08/12 19:25:48.027, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 167.2,
+      "gpu": "2026/08/12 19:26:03.228, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 182.4,
+      "gpu": "2026/08/12 19:26:18.418, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 197.6,
+      "gpu": "2026/08/12 19:26:33.622, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 212.7,
+      "gpu": "2026/08/12 19:26:48.799, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 227.9,
+      "gpu": "2026/08/12 19:27:03.995, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 243.1,
+      "gpu": "2026/08/12 19:27:19.196, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 258.3,
+      "gpu": "2026/08/12 19:27:34.384, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 273.5,
+      "gpu": "2026/08/12 19:27:49.569, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 288.7,
+      "gpu": "2026/08/12 19:28:04.759, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    },
+    {
+      "containers": [
+        {
+          "health": null,
+          "name": "rag-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "ingestor-server",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-qwen-vllm-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-vlm-embedding-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "nemotron-ranking-vl-ms",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "elasticsearch",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "compose-nv-ingest-ms-runtime-1",
+          "restart_count": 0,
+          "status": "running"
+        },
+        {
+          "health": "healthy",
+          "name": "rag-frontend",
+          "restart_count": 0,
+          "status": "running"
+        }
+      ],
+      "elapsed_seconds": 408.4,
+      "gpu": "2026/08/12 19:30:04.465, 0, 72728, 8352, 100",
+      "rag_dependency_health_status": 200
+    }
+  ],
+  "schema_version": "ticket07-co-residency-v1",
+  "started_at_utc": "2026-08-12T19:23:16Z",
+  "traffic": {
+    "image": [
+      {
+        "ok": true,
+        "response_bytes": 1413944,
+        "total_seconds": 208.97710440517403,
+        "ttft_seconds": 0.6245062451343983
+      },
+      {
+        "ok": true,
+        "response_bytes": 1223816,
+        "total_seconds": 196.85828630509786,
+        "ttft_seconds": 0.6737204659730196
+      }
+    ],
+    "ingestion": [
+      {
+        "cleanup_status": 200,
+        "collection": "ticket07_co_residency_1786562596_1",
+        "ok": true,
+        "total_seconds": 101.19884835206904
+      },
+      {
+        "cleanup_status": 200,
+        "collection": "ticket07_co_residency_1786562697_2",
+        "ok": true,
+        "total_seconds": 96.16610369994305
+      },
+      {
+        "cleanup_status": 200,
+        "collection": "ticket07_co_residency_1786562793_3",
+        "ok": true,
+        "total_seconds": 99.04415498906747
+      },
+      {
+        "cleanup_status": 200,
+        "collection": "ticket07_co_residency_1786562892_4",
+        "ok": true,
+        "total_seconds": 94.08869453705847
+      }
+    ],
+    "text": [
+      {
+        "ok": true,
+        "response_bytes": 935161,
+        "total_seconds": 210.1424328519497,
+        "ttft_seconds": 0.6218943600542843
+      },
+      {
+        "ok": true,
+        "response_bytes": 756417,
+        "total_seconds": 198.1438203540165,
+        "ttft_seconds": 0.6142184948548675
+      }
+    ]
+  }
+}

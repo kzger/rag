@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -142,6 +143,7 @@ def stub_chat_prompt(
     real_response_tests = {
         "test_direct_disclosure_closes_underlying_stream_on_early_close",
         "test_public_generate_verified_keeps_selected_context_and_citation",
+        "test_public_multimodal_generate_closes_prefetched_stream_before_iteration",
     }
     if request.node.name not in real_response_tests:
         monkeypatch.setattr(main, "generate_answer_async", mock_generate_answer_async)
@@ -477,6 +479,175 @@ async def test_generate_logs_multimodal_accuracy_stage_timings(
             await generate_multimodal(rag)
 
     assert "Multimodal accuracy stages" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_public_multimodal_generate_logs_sanitized_latency_stages(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The public image+text seam exposes each retrieval and generation latency."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("visual.pdf", 1, "visual")]
+    vdb.text_result = [page_doc("text.pdf", 2, "text")]
+    rag = NvidiaRAG()
+    configure_vdb(monkeypatch, vdb)
+    perf_counter_values = iter([100.0] * 11 + [100.025])
+    monkeypatch.setattr(
+        main.time,
+        "perf_counter",
+        lambda: next(perf_counter_values, 100.025),
+    )
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        yield "safe answer"
+
+    async def consume_generate_answer_async(
+        generator: object, contexts: object, **kwargs: object
+    ) -> AsyncIterator[str]:
+        async for _ in generator:  # type: ignore[union-attr]
+            yield "safe sse chunk"
+
+    monkeypatch.setattr(main, "generate_answer_async", consume_generate_answer_async)
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.stream_with_messages = stream
+        with caplog.at_level("INFO"):
+            response = await rag.generate(
+                messages=multimodal_messages(),
+                use_knowledge_base=True,
+                collection_names=["test"],
+                enable_reranker=False,
+                enable_vlm_inference=True,
+            )
+            async for _ in response.generator:
+                pass
+
+    assert "visual_retrieval_ms=" in caplog.text
+    assert "text_retrieval_ms=" in caplog.text
+    generation_latency = re.search(
+        r"elapsed_ms=(?P<latency>[0-9]+(?:\.[0-9]+)?)", caplog.text
+    )
+    assert "Generation latency: status=completed" in caplog.text
+    assert generation_latency is not None
+    assert float(generation_latency.group("latency")) == pytest.approx(25.0)
+    assert "data:image" not in caplog.text
+    assert "j7ef-current" not in caplog.text
+    assert "safe answer" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_public_multimodal_generate_closes_prefetched_stream_before_iteration(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Closing the returned SSE before iteration closes the started model stream."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setattr(main.time, "perf_counter", lambda: 100.0)
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("visual.pdf", 1, "visual")]
+    vdb.text_result = [page_doc("text.pdf", 2, "text")]
+    rag = NvidiaRAG()
+    configure_vdb(monkeypatch, vdb)
+    monkeypatch.setattr(rag, "_is_shared_vdb_op", lambda _: True)
+    upstream_closed = False
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        nonlocal upstream_closed
+        try:
+            yield "safe answer"
+            await asyncio.Future()
+        finally:
+            upstream_closed = True
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.stream_with_messages = stream
+        with caplog.at_level("INFO"):
+            response = await rag.generate(
+                messages=multimodal_messages(),
+                use_knowledge_base=True,
+                collection_names=["test"],
+                enable_reranker=False,
+                enable_vlm_inference=True,
+            )
+            await response.generator.aclose()
+
+    assert upstream_closed
+    assert caplog.text.count("Generation latency: status=cancelled") == 1
+
+
+class _LifecycleStream:
+    def __init__(self, error: BaseException | None = None) -> None:
+        self.error = error
+        self.closed = False
+
+    def __aiter__(self) -> "_LifecycleStream":
+        return self
+
+    async def __anext__(self) -> str:
+        if self.error is not None:
+            raise self.error
+        self.error = StopAsyncIteration()
+        return "chunk"
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_generation_latency_stream_logs_cancelled_on_early_close(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(main.time, "perf_counter", iter((10.0, 10.01)).__next__)
+    upstream = _LifecycleStream()
+    stream = main._GenerationLatencyStream(upstream)
+
+    await stream.aclose()
+
+    assert upstream.closed
+    assert "Generation latency: status=cancelled elapsed_ms=10.0" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_generation_latency_stream_preserves_upstream_error_when_close_fails(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(main.time, "perf_counter", iter((20.0, 20.01)).__next__)
+    original = ValueError("upstream failure")
+    upstream = _LifecycleStream(original)
+
+    async def close_with_error() -> None:
+        raise RuntimeError("close failure")
+
+    upstream.aclose = close_with_error
+    stream = main._GenerationLatencyStream(upstream)
+
+    with pytest.raises(ValueError, match="upstream failure"):
+        await stream.__anext__()
+
+    assert "Generation latency: status=error elapsed_ms=10.0" in caplog.text
+    assert "close failure" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_generation_latency_stream_preserves_cancellation_when_close_fails(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(main.time, "perf_counter", iter((30.0, 30.01)).__next__)
+    upstream = _LifecycleStream(asyncio.CancelledError())
+
+    async def close_with_error() -> None:
+        raise RuntimeError("close failure")
+
+    upstream.aclose = close_with_error
+    stream = main._GenerationLatencyStream(upstream)
+
+    with pytest.raises(asyncio.CancelledError):
+        await stream.__anext__()
+
+    assert "Generation latency: status=cancelled elapsed_ms=10.0" in caplog.text
 
 
 @pytest.mark.asyncio

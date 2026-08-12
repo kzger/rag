@@ -1,0 +1,38 @@
+{
+  "containers": {
+    "compose-nv-ingest-ms-runtime-1": {
+      "match_count": 0,
+      "matches": []
+    },
+    "compose-qwen-vllm-1": {
+      "match_count": 0,
+      "matches": []
+    },
+    "elasticsearch": {
+      "match_count": 0,
+      "matches": []
+    },
+    "ingestor-server": {
+      "match_count": 0,
+      "matches": []
+    },
+    "nemotron-ranking-vl-ms": {
+      "match_count": 0,
+      "matches": []
+    },
+    "nemotron-vlm-embedding-ms": {
+      "match_count": 0,
+      "matches": []
+    },
+    "rag-server": {
+      "match_count": 0,
+      "matches": []
+    }
+  },
+  "terms": [
+    "out of memory",
+    "cuda oom",
+    "fatal worker",
+    "killed process"
+  ]
+}

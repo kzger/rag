@@ -33,6 +33,7 @@ Private helper methods:
 
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -40,7 +41,7 @@ import os
 import re
 import threading
 import time
-from collections.abc import AsyncGenerator, Callable, Generator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from traceback import print_exc
 from typing import Any
@@ -137,6 +138,60 @@ async def _async_iter(items) -> AsyncGenerator[Any, None]:
 logger = logging.getLogger(__name__)
 
 MAX_COLLECTION_NAMES = 5
+
+
+class _GenerationLatencyStream:
+    """Own a model stream while recording content-free terminal latency logs."""
+
+    def __init__(self, stream: AsyncIterator[Any]) -> None:
+        self._stream = stream
+        self._started = time.perf_counter()
+        self._finished = False
+
+    def __aiter__(self) -> "_GenerationLatencyStream":
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            return await self._stream.__anext__()
+        except StopAsyncIteration:
+            await self._finish("completed")
+            raise
+        except asyncio.CancelledError:
+            await self._finish("cancelled")
+            raise
+        except BaseException:
+            await self._finish("error")
+            raise
+
+    async def aclose(self) -> None:
+        """Close the upstream stream, including when this wrapper was never iterated."""
+        await self._finish("cancelled")
+
+    async def _finish(self, status: str) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        terminal_status = status
+        close = getattr(self._stream, "aclose", None)
+        if callable(close):
+            try:
+                result = close()
+                if hasattr(result, "__await__"):
+                    await result
+            except BaseException as error:
+                # Never replace the stream exception or cancellation with a close error.
+                terminal_status = "error" if status == "completed" else status
+                logger.warning(
+                    "Generation stream close failed: status=%s error_type=%s",
+                    terminal_status,
+                    type(error).__name__,
+                )
+        logger.info(
+            "Generation latency: status=%s elapsed_ms=%.1f",
+            terminal_status,
+            (time.perf_counter() - self._started) * 1000,
+        )
 
 
 class NvidiaRAG:
@@ -4106,27 +4161,44 @@ class NvidiaRAG:
                         # Always stream VLM response directly using async streaming (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly (async).")
                         vlm_token_usage: dict[str, Any] = {}
-                        vlm_generator = vlm.stream_with_messages(
-                            docs=context_to_show,
-                            messages=vlm_messages,
-                            context_text=vlm_text_context,
-                            question_text=self._extract_text_from_content(query),
-                            organize_by_page=fetch_full_page_context,
-                            temperature=vlm_temperature_cfg,
-                            top_p=vlm_top_p_cfg,
-                            max_tokens=vlm_max_tokens_cfg,
-                            max_total_images=vlm_max_total_images_cfg,
-                            nrl_mode=self._is_nrl_mode,
-                            token_usage=vlm_token_usage,
-                            enable_thinking=vlm_enable_thinking_req,
-                            thinking_token_budget=vlm_thinking_token_budget_req,
-                            filter_think_tokens=vlm_filter_thinking_tokens_req,
+                        vlm_generator = _GenerationLatencyStream(
+                            vlm.stream_with_messages(
+                                docs=context_to_show,
+                                messages=vlm_messages,
+                                context_text=vlm_text_context,
+                                question_text=self._extract_text_from_content(query),
+                                organize_by_page=fetch_full_page_context,
+                                temperature=vlm_temperature_cfg,
+                                top_p=vlm_top_p_cfg,
+                                max_tokens=vlm_max_tokens_cfg,
+                                max_total_images=vlm_max_total_images_cfg,
+                                nrl_mode=self._is_nrl_mode,
+                                token_usage=vlm_token_usage,
+                                enable_thinking=vlm_enable_thinking_req,
+                                thinking_token_budget=vlm_thinking_token_budget_req,
+                                filter_think_tokens=vlm_filter_thinking_tokens_req,
+                            )
                         )
                         # Eagerly prefetch first chunk to trigger any errors before creating RAGResponse
                         # ensures connection errors are caught early
                         prefetched_vlm_stream = await self._eager_prefetch_astream(
                             vlm_generator
                         )
+                        source_closed = False
+
+                        async def close_source_once() -> None:
+                            nonlocal source_closed
+                            if source_closed:
+                                return
+                            source_closed = True
+                            # Close the already-started latency wrapper directly. The
+                            # prefetched stream may never be iterated, so its async
+                            # generator finalizer is not sufficient for ownership.
+                            close = getattr(vlm_generator, "aclose", None)
+                            if callable(close):
+                                result = close()
+                                if hasattr(result, "__await__"):
+                                    await result
 
                         logger.info(
                             "VLM stream initiated successfully (first chunk received)"
@@ -4144,6 +4216,7 @@ class NvidiaRAG:
                                 enable_citations=enable_citations,
                                 use_nrl_citations=self._is_nrl_mode,
                                 token_usage=vlm_token_usage,
+                                close_callback=close_source_once,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )
@@ -4583,7 +4656,7 @@ class NvidiaRAG:
             vlm_endpoint = (
                 vlm_settings.get("vlm_endpoint") or self.config.vlm.server_url
             )
-            query_understanding_start = time.time()
+            query_understanding_start = time.perf_counter()
             try:
                 vlm = VLM(
                     vlm_model=vlm_model,
@@ -4598,7 +4671,7 @@ class NvidiaRAG:
                     temperature=cfg.query_understanding_temperature,
                 )
                 stage_timings["query_understanding_ms"] = (
-                    time.time() - query_understanding_start
+                    time.perf_counter() - query_understanding_start
                 ) * 1000
                 if understanding is None:
                     logger.warning(
@@ -4630,16 +4703,23 @@ class NvidiaRAG:
 
         def _visual_retrieval() -> list[Document]:
             text_retrieval_started.wait()
-            return vdb_op.retrieval_image_langchain(
-                query=retriever_query,
-                collection_name=collection_name,
-                vectorstore=vectorstore,
-                top_k=vdb_top_k,
-                reranker_top_k=cfg.visual_candidates,
-                diverse_pages=True,
-            )
+            started = time.perf_counter()
+            try:
+                return vdb_op.retrieval_image_langchain(
+                    query=retriever_query,
+                    collection_name=collection_name,
+                    vectorstore=vectorstore,
+                    top_k=vdb_top_k,
+                    reranker_top_k=cfg.visual_candidates,
+                    diverse_pages=True,
+                )
+            finally:
+                stage_timings["visual_retrieval_ms"] = (
+                    time.perf_counter() - started
+                ) * 1000
 
         def _text_retrieval() -> list[Document]:
+            started = time.perf_counter()
             try:
                 return vdb_op.retrieval_langchain(
                     query=text_query,
@@ -4650,9 +4730,12 @@ class NvidiaRAG:
                     otel_ctx=otel_ctx,
                 )
             finally:
+                stage_timings["text_retrieval_ms"] = (
+                    time.perf_counter() - started
+                ) * 1000
                 text_retrieval_started.set()
 
-        dual_retrieval_start = time.time()
+        dual_retrieval_start = time.perf_counter()
         with ThreadPoolExecutor(max_workers=2) as executor:
             text_future = executor.submit(_text_retrieval)
             visual_future = executor.submit(_visual_retrieval)
@@ -4664,11 +4747,13 @@ class NvidiaRAG:
                     getattr(vdb_op, "embedding_model", None)
                     or getattr(vdb_op, "_embedding_model", None)
                 )
-        stage_timings["dual_retrieval_ms"] = (time.time() - dual_retrieval_start) * 1000
+        stage_timings["dual_retrieval_ms"] = (
+            time.perf_counter() - dual_retrieval_start
+        ) * 1000
 
         visual_docs = dedupe_by_page(visual_docs, limit=cfg.visual_candidates)
         text_docs = dedupe_by_page(text_docs, limit=cfg.text_candidates)
-        fusion_start = time.time()
+        fusion_start = time.perf_counter()
         fused_docs = fuse_visual_text_candidates(
             visual_documents=visual_docs,
             text_documents=text_docs,
@@ -4677,13 +4762,16 @@ class NvidiaRAG:
             rrf_k=cfg.rrf_k,
             max_candidates=cfg.max_candidates,
         )
-        stage_timings["fusion_ms"] = (time.time() - fusion_start) * 1000
+        stage_timings["fusion_ms"] = (time.perf_counter() - fusion_start) * 1000
         logger.info(
             "Multimodal accuracy stages: query_understanding_ms=%.1f "
-            "dual_retrieval_ms=%.1f fusion_ms=%.1f visual_candidates=%d "
+            "dual_retrieval_ms=%.1f visual_retrieval_ms=%.1f "
+            "text_retrieval_ms=%.1f fusion_ms=%.1f visual_candidates=%d "
             "text_candidates=%d fused_candidates=%d text_query_chars=%d",
             stage_timings.get("query_understanding_ms", -1.0),
             stage_timings.get("dual_retrieval_ms", -1.0),
+            stage_timings.get("visual_retrieval_ms", -1.0),
+            stage_timings.get("text_retrieval_ms", -1.0),
             stage_timings.get("fusion_ms", -1.0),
             len(visual_docs),
             len(text_docs),
