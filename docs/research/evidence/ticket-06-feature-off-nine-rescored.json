@@ -1,0 +1,366 @@
+{
+  "variant": "feature-off-nine-case",
+  "dataset": {
+    "version": "jorjin-glasses-weak-query-v1",
+    "manifest": "multimodal_accuracy_cases.json",
+    "manifest_sha256": "76d83b7d0da5d83e897a30b811e6bfb0502df450c6eb9b36a9b67a2e2b5750c4",
+    "coverage": {},
+    "ambiguity": {
+      "required": true,
+      "present": true,
+      "reason": "The manifest reuses the checked-in company logo asset for a deliberately ambiguous model-choice prompt. A logo identifies the company but cannot uniquely support either J7EF Plus or J10A.",
+      "safe_outcome": "abstain_or_reject",
+      "ground_truth_asset": "../../image/logo_max.png"
+    },
+    "assets": [
+      {
+        "path": "../../data/multimodal/Creme_clutch_purse1-small.jpg",
+        "sha256": "f6c76cf9b08d40c403eb2de72f6eb7d7b422cfe5ea42ec742d12cadf087821dd"
+      },
+      {
+        "path": "../../image/j10a-ocr-fixture.png",
+        "sha256": "e9a2bc58e232e13149dab20a98aef2af02fc8704c04c9360b0ab922d5f8fb122"
+      },
+      {
+        "path": "../../image/j7ef-plus-ocr-fixture.png",
+        "sha256": "dc332c37db5670c2a7829d2f0532f7584df86c65f1d714f3f858d85551c35710"
+      },
+      {
+        "path": "../../image/j7ef-plus.jpg",
+        "sha256": "ab014e691c8c5cbed08417341b6a2a313f4cab3e6182febb72689dc69134696b"
+      },
+      {
+        "path": "../../image/logo_max.png",
+        "sha256": "46b409c59488b9a079fc7cac5e3dd505635ddc40b712522535d990befdbcbd20"
+      }
+    ]
+  },
+  "configuration": {
+    "model": "Qwen/Qwen3.6-27B-FP8",
+    "collection": "jorjin_glasses",
+    "vdb_top_k": 100,
+    "reranker_top_k": 5,
+    "endpoint": "http://127.0.0.1:8081",
+    "request_fields": {
+      "collection_names": [
+        "jorjin_glasses"
+      ],
+      "model": "Qwen/Qwen3.6-27B-FP8",
+      "vdb_top_k": 100,
+      "reranker_top_k": 5,
+      "vlm_temperature": 0.0,
+      "vlm_temperature_sent": true
+    },
+    "server_deployment": {
+      "provenance": "explicit-file-complete",
+      "settings": {
+        "ENABLE_QUERY_UNDERSTANDING": true,
+        "MULTIMODAL_VISUAL_CANDIDATES": 5,
+        "MULTIMODAL_TEXT_CANDIDATES": 5,
+        "MULTIMODAL_MAX_CANDIDATES": 5,
+        "MULTIMODAL_VISUAL_WEIGHT": 0.5,
+        "MULTIMODAL_TEXT_WEIGHT": 0.5,
+        "MULTIMODAL_RRF_K": 60,
+        "MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS": 512,
+        "MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE": 0.0,
+        "APP_VECTORSTORE_SEARCHTYPE": "dense",
+        "APP_VECTORSTORE_RANKER_TYPE": "rrf",
+        "APP_VECTORSTORE_DENSE_WEIGHT": 0.5,
+        "APP_VECTORSTORE_SPARSE_WEIGHT": 0.5,
+        "APP_VECTORSTORE_EF": 100,
+        "VECTOR_DB_TOPK": 100,
+        "APP_RETRIEVER_TOPK": 5,
+        "RERANKER_SCORE_THRESHOLD": 0.0,
+        "APP_VLM_TEMPERATURE": 0.0,
+        "APP_VLM_TOP_P": 0.95,
+        "APP_VLM_MAX_TOKENS": 8192,
+        "APP_VLM_MAX_TOTAL_IMAGES": 3,
+        "APP_VLM_ENABLE_THINKING": false,
+        "APP_VLM_THINKING_TOKEN_BUDGET": 16384,
+        "ENABLE_MULTIMODAL_ACCURACY": false,
+        "ENABLE_MULTIMODAL_VERIFICATION_GATE": false,
+        "MULTIMODAL_VERIFICATION_MAX_CANDIDATES": 2,
+        "MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE": 0.8,
+        "MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE": 0.8,
+        "MULTIMODAL_VERIFICATION_MAX_TOKENS": 512,
+        "MULTIMODAL_VERIFICATION_TEMPERATURE": 0.0,
+        "ENABLE_MULTIMODAL_ABSTENTION_PROMPT": false,
+        "VLM_TO_LLM_FALLBACK": false
+      },
+      "unavailable_keys": []
+    },
+    "calibration": {
+      "raw_and_rrf_thresholds": "telemetry-only",
+      "status": "run-metadata-only",
+      "vlm_temperature": {
+        "status": "not-selected",
+        "reason": "Selection belongs to the comparison/evidence report.",
+        "selected": null
+      }
+    }
+  },
+  "metric_definitions": {
+    "candidate_retrieval_hit_at_k": "Fraction of cases with an expected source among the ordered candidates returned by the public /v1/search probe; K is configuration.reranker_top_k.",
+    "verified_identification_accuracy": "Fraction of identifiable cases whose answer contains an annotated accepted identity, contains no annotated forbidden term, does not deny the identity, and whose /v1/search candidates and /v1/generate citations both contain an expected source. Denial is matched as a phrase (a negator bound to 'the same product' or to an accepted model term), not as a bare substring, so a negation used in passing in an otherwise correct answer does not count. This lexical value is a lexical diagnostic only; the adjudicated report replaces it with manual verdicts, which are authoritative.",
+    "unsupported_claim_rate": "Case-level lexical diagnostic: fraction of outputs that fail an annotated identity, contain an annotated forbidden claim, or fail to reject a case annotated as no-match. The adjudicated report replaces it with manually reviewed atomic-claim counts.",
+    "low_confidence_rejection_precision_recall": "Precision and recall of configured rejection phrases against cases annotated expected_rejection=true.",
+    "rejection_citation_leak_rate": "Fraction of expected-rejection cases that emitted any citation; expected value is zero.",
+    "retrieval_latency": "Wall-clock latency of the public /v1/search candidate probe."
+  },
+  "metrics": {
+    "case_count": 9,
+    "candidate_retrieval_hit_at_k": 0.75,
+    "verified_identification_accuracy": 0.75,
+    "unsupported_claim_rate": 0.6666666666666666,
+    "low_confidence_rejection_precision": 1.0,
+    "low_confidence_rejection_recall": 0.2,
+    "rejection_citation_leak_rate": 1.0,
+    "latency_seconds": {
+      "retrieval": {
+        "p50": 1.110178312053904,
+        "p95": 2.387258355459198,
+        "mean": 1.3435602797867938
+      },
+      "ttft": {
+        "p50": 2.9401175749953836,
+        "p95": 6.312138979742303,
+        "mean": 3.711246826685965
+      },
+      "total": {
+        "p50": 6.732455970952287,
+        "p95": 9.668504751101135,
+        "mean": 7.352263136766851
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "j7ef-weak-what",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片和文件內容，這是一個 **J7EF Plus** 虛擬實境（VR）頭戴裝置的配件，具體來說是一個**頭戴式支架（Head Strap）**。\n\n以下是詳細說明：\n\n1.  **產品型號**：\n    *   根據提供的文件標題「JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3」以及圖片下方的標註「圖 1: J7EF Plus」，可以確認這是 **J7EF Plus** 型號的設備。\n\n2.  **產品部件**：\n    *   圖片中顯示的是一個黑色的頭戴支架，具有類似碳纖維的紋理設計。\n    *   它配備了灰色的可調節帶子，上面有孔洞用於調整鬆緊，並帶有黑色的旋鈕或扣件，用於將 VR 頭顯固定在頭部。\n    *   雖然其中一段文字描述提到了「Sprint」品牌，但根據文件標題和圖示標註，這更可能是指該支架是 J7EF Plus 的專屬配件或升級配件。\n\n3.  **功能**：\n    *   這個支架的作用是將 VR 頭顯穩固地固定在使用者的頭部，提供舒適且安全的佩戴體驗，讓使用者在進行虛擬實境活動時不會感到滑落或不適。\n\n總結來說，這是 **J7EF Plus VR 頭顯的頭戴支架配件**。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 5.55085150199011,
+      "total_seconds": 9.687388293910772,
+      "search_seconds": 2.5831389010418206,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j7ef-pronoun-confirmation",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據您提供的圖片和文件內容，**不是**這個。\n\n**分析如下：**\n\n1.  **您詢問的圖片（最後一張）：**\n    *   這是一個黑色的頭戴裝置，側面印有紅色的 **\"JREALITY\"** 標誌。\n    *   從外觀設計來看，這屬於 **JREALITY（境靈）** 品牌的產品（可能是 AR 眼鏡或 VR 頭顯），其設計特徵是黑色的外殼和特定的頭帶結構。\n\n2.  **文件與前兩張圖片中的產品：**\n    *   文件標題為 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3`。\n    *   前兩張圖片顯示的是一個 **灰色與黑色相間** 的頭帶，上面印有 **\"Sprint\"** 字樣（或是類似字樣，視解析度而定，但明顯不是 JREALITY 的紅色 Logo）。\n    *   文件明確標註圖片為 **\"J7EF Plus\"**。\n\n**結論：**\n您最後上傳的圖片是 **JREALITY** 品牌的產品，而文件及前兩張圖片描述的是 **JORJIN TECHNOLOGIES** 的 **J7EF Plus** 產品。兩者在品牌、外觀顏色（黑色 vs 灰黑）以及標誌上均不相同。因此，您詢問的「是這個嗎？」的答案是 **否**。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 4.413163470104337,
+      "total_seconds": 8.437752111116424,
+      "search_seconds": 0.9281190561596304,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j7ef-ocr-brand-model",
+      "expected_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "accepted_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J7EF Puls"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片與文字內容，辨識結果如下：\n\n*   **型號 (Model)：** **J7EF Plus**\n    *   在第二張圖片中，設備正面的白色標籤上清楚印有「**MODEL J7EF PLUS**」。\n    *   在提供的文字檔案名稱「JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3」以及圖片說明（圖 1: J7EF Plus）中也確認了此型號。\n\n*   **品牌 (Brand)：** **JORJIN TECHNOLOGIES**\n    *   雖然設備本體上未直接顯示品牌 Logo，但根據提供的檔案名稱「**JORJIN TECHNOLOGIES**-J7EF PULS 產品規格_v3」，該產品的品牌為 JORJIN TECHNOLOGIES。\n\n*   **其他可見文字：**\n    *   在第一張圖片的頭帶灰色部分，可見印有「**Sprint**」字樣（可能是該配件系列的名称或子品牌）。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 6.819663964910433,
+      "total_seconds": 9.640179436886683,
+      "search_seconds": 1.2124117170460522,
+      "forbidden_answer_terms": [
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "j10a-similar-model-disambiguation",
+      "expected_sources": [
+        "J10A Sales kit.pdf#page=1",
+        "J10A Sales kit.pdf#page=2"
+      ],
+      "accepted_answer_terms": [
+        "J10A"
+      ],
+      "expected_rejection": false,
+      "answer": "根據提供的圖片，這個產品的型號是 **J10A**。\n\n在該虛擬實境（VR）頭戴裝置的正面，有一張白色的標籤，上面清楚地印著「MODEL J10A」。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 4.805551022058353,
+      "total_seconds": 5.208567650057375,
+      "search_seconds": 1.347973644034937,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": null
+    },
+    {
+      "case_id": "logo-weak-what",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片和文字內容，這是一個名為 **「JORDIN」** 的品牌標誌（Logo）。\n\n以下是關於這個標誌的詳細特徵：\n\n*   **品牌名稱**：標誌中的文字為大寫英文字母 **\"JORDIN\"**，採用現代無襯線字體（sans-serif typeface），看起來粗體且有力。\n*   **圖形元素**：在文字的中間部分（覆蓋在字母 \"R\" 和 \"D\" 之上），有一個動態的抽象圖形。這個圖形看起來像是一個流線型的「Swoosh」或者是一個風格化的數字 **\"5\"**。\n*   **設計風格**：\n    *   **第一張圖**：背景為鮮豔的橙色，文字和圖形為黑色。這種高對比度的配色旨在傳達活力、創意與專業感。\n    *   **第二張圖**：背景為黑色，文字呈現深灰色調，而中間的抽象圖形則使用了紅色。\n*   **象徵意義**：根據描述，這個設計旨在傳達「動感」、「科技感」或「創新」。那個抽象的圖形可能代表著品牌的第五個支柱、版本5，或者僅僅是一個視覺錨點，用來增強品牌的辨識度。\n\n總結來說，這是一個設計簡潔、現代且極簡主義的品牌標誌，適合用於科技初創公司、媒體公司或生活風格品牌。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 1.7863517289515585,
+      "total_seconds": 5.933978114975616,
+      "search_seconds": 0.8447582288645208,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": false
+    },
+    {
+      "case_id": "logo-pronoun-confirmation",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據您提供的圖片和文字描述，**是的，這是同一個品牌標誌（Logo）**，只是顏色版本不同。\n\n以下是詳細的比對分析：\n\n1.  **文字內容一致**：\n    兩張圖片中的文字都是 **「JORDIN」**，且字體樣式（粗體、無襯線字體）完全相同。\n\n2.  **圖形元素一致**：\n    兩張圖片中，在字母 \"R\" 和 \"D\" 之間都有一個相同的抽象圖形。這個圖形看起來像是一個傾斜的數字 **「5」** 或是一個流線型的符號，這與描述中提到的「superimposed over the middle... resembling a swoosh or stylized digit 5」完全吻合。\n\n3.  **顏色差異**：\n    *   **第一張圖片**：背景為**橙色**，文字和圖形為**黑色**。這符合描述中提到的 \"solid, vibrant orange background\" 和 \"bold, black, uppercase letters\"。\n    *   **第二張圖片**：背景為**黑色**，文字為**深灰色/黑色**，而中間的抽象圖形變成了**紅色**。\n\n**結論：**\n這兩張圖片展示的是 **JORDIN** 品牌的同一個 Logo 設計，分別應用了不同的配色方案（橙色背景版 vs. 黑色背景紅標版）。如果您是在尋找描述中提到的那個 Logo，那麼這兩張圖都是正確的，只是顏色配置不同。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 1.5701564471237361,
+      "total_seconds": 6.111452835146338,
+      "search_seconds": 2.093437537085265,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": false
+    },
+    {
+      "case_id": "consecutive-image-isolation-baseline",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片與上下文資訊，這是一個品牌標誌（Logo）。\n\n**詳細分析如下：**\n\n1.  **品牌名稱**：\n    圖片中顯示的文字為 **「JORDIN」**。這與第一張圖片中的品牌名稱一致，只是配色方案不同。\n\n2.  **設計元素**：\n    *   **字體**：使用了粗體、現代感的無襯線字體（Sans-serif），呈現出科技感與穩重感。\n    *   **圖形符號**：在文字中間（覆蓋在字母 \"R\" 和 \"D\" 上方）有一個紅色的抽象圖形。這個圖形看起來像是一個風格化的數字 **「5」** 或是一個動感的「Swoosh」標誌。\n    *   **配色**：與第一張圖片的「黑字橙底」不同，這張圖片採用了 **「黑底、深灰字、紅色圖形」** 的配色。紅色通常象徵著活力、激情或警示，與黑色的沉穩形成強烈對比。\n\n3.  **與前圖的關聯**：\n    這很可能是同一品牌（JORDIN）在不同場合或產品線使用的變體標誌。\n    *   **第一張圖**：橙色背景，黑色文字與圖形，感覺較為活潑、創意。\n    *   **這張圖**：黑色背景，紅色圖形，感覺較為專業、科技感強或偏向工業/硬體產品。\n\n4.  **品牌背景推測**：\n    結合第二張圖片中出現的 **「JREALITY」** 品牌頭戴式顯示器（AR/VR眼鏡），以及「JORDIN」這個名稱，這很可能是一個與 **增強現實（AR）、虛擬現實（VR）或高科技顯示設備** 相關的品牌或產品系列名稱。那個紅色的「5」可能代表產品的第五代、第五項核心技術，或者僅僅是一個視覺識別符號。\n\n**總結：**\n這是 **JORDIN** 品牌的另一個版本標誌，採用黑底紅圖設計，強調科技感與專業性，可能用於其高科技產品（如AR/VR設備）的宣傳或包裝上。",
+      "candidate_sources": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "citations": [
+        "J10A Sales kit.pdf#page=9"
+      ],
+      "ttft_seconds": 2.660950892139226,
+      "total_seconds": 9.122292733984068,
+      "search_seconds": 0.9499196549877524,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORDIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": false
+    },
+    {
+      "case_id": "no-text-product-no-match",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的圖片和文字資訊，這個產品是 **J7EF Plus** 虛擬實境（VR）頭戴裝置的頭帶配件。\n\n以下是詳細說明：\n\n1.  **產品名稱**：根據文件標題 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3` 以及圖片下方的標註 `圖 1: J7EF Plus`，可以確認該產品屬於 J7EF Plus 系列。\n2.  **產品類型**：這是一款專為虛擬實境（VR）頭戴裝置設計的**頭帶（Head Strap）**。\n3.  **外觀特徵**：\n    *   **材質與顏色**：頭帶主要由灰色和黑色的材質組成，內部有黑色的軟墊以增加佩戴舒適度。\n    *   **品牌標識**：在灰色的頭帶部分可以看到印有 **\"Sprint\"** 的字樣。\n    *   **設計結構**：具備可調節的孔洞和扣環設計，用於固定 VR 頭盔並根據使用者的頭圍調整鬆緊。\n    *   **連接線**：頭帶上連接著黑色的線材，這可能是用於連接感測器或電源。\n\n總結來說，這是一個由 Jorjin Technologies 生產，型號為 J7EF Plus 的 VR 頭戴裝置專用頭帶。",
+      "candidate_sources": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "citations": [
+        "JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf#page=3"
+      ],
+      "ttft_seconds": 2.9401175749953836,
+      "total_seconds": 6.732455970952287,
+      "search_seconds": 1.022105466807261,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J10A",
+        "JORJIN"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": false
+    },
+    {
+      "case_id": "logo-deliberate-ambiguity",
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "expected_rejection": true,
+      "answer": "根據提供的上下文與圖片，無法確認該產品是 J7EF Plus 還是 J10A。\n\n**原因如下：**\n\n1.  **圖片資訊不足：** 提供的圖片僅顯示了品牌標誌「JORUID」，並未顯示任何具體的產品型號、外觀特徵或規格標籤，因此無法從視覺上辨識這是哪一款產品。\n2.  **文字內容不符：** 提供的文字表格（問答表格）中列出了 J7EF Plus、J9、J10A 和 J7M 四款產品的規格與問答，但這些文字內容是用來回答關於產品規格的問題，並未包含任何可以將圖片中的 Logo 與特定型號（J7EF Plus 或 J10A）聯繫起來的資訊。\n\n因此，僅憑目前的 Logo 圖片和產品規格問答表，無法判斷該產品屬於 J7EF Plus 還是 J10A。",
+      "candidate_sources": [
+        "產品問答.pdf#page=1"
+      ],
+      "citations": [
+        "產品問答.pdf#page=1"
+      ],
+      "ttft_seconds": 2.854414837900549,
+      "total_seconds": 5.296301083872095,
+      "search_seconds": 1.110178312053904,
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J10A"
+      ],
+      "error": null,
+      "expected_rejection_has_zero_citations": false
+    }
+  ],
+  "scoring": {
+    "status": "rescored",
+    "harness_version": "multimodal-scoring-harness-v2",
+    "network_used": false
+  }
+}

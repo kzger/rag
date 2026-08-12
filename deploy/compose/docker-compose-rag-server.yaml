@@ -128,7 +128,7 @@ services:
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
       VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-False}
       # Max images sent to VLM per request (query + context)
-      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
+      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-3}
       # Whether to filter out reasoning tokens from VLM responses (stream only content, not reasoning)
       VLM_FILTER_THINK_TOKENS: ${VLM_FILTER_THINK_TOKENS:-true}
       # Enable reasoning mode for Nemotron 3 nano omni reasoning model

@@ -495,6 +495,65 @@ is enabled, so the legacy pipeline remains the fallback. Verification decisions 
 logged as `Verifier judgment`, `Bridge matches`, and `Verification outcome` lines
 carrying structured fields only — never image URIs or base64 payloads.
 
+## Quality and latency calibration
+
+The public evaluation seam records request fields separately from deployment
+settings and compares reports only when dataset version, manifest filename and
+manifest SHA-256, asset hashes, model, and collection are identical. It reports
+candidate-minus-baseline quality
+and TTFT/total P50/P95 deltas and fails closed for mismatches. Missing latency or
+failed cases remain explicit unmet cases.
+
+Remote deployment settings must be supplied separately as a sanitized JSON
+artifact following `scripts/eval/multimodal_server_settings.example.json`.
+Evaluator-host environment variables are not remote provenance: without that
+file, the report marks server settings unavailable. Local environment capture is
+an explicit, separately labeled diagnostic mode only.
+
+The corrected nine-case strict-provenance comparison leaves VLM temperature
+calibration unresolved: lexical quality is tied at `0.50`, manual grounded
+identification is `2/4` for both, and rejection is `5/5` for both. Neither shows
+superior groundedness. The
+query-understanding temperature validator
+permits `0.0–2.0`; verification temperature and confidence validators permit
+`0.0–1.0`; positive candidate/token limits have no configured upper bound. The
+VLM generation temperature has no local configuration validator, so its safe
+operating range is deployment/model-specific and must be established by the
+live trials. Reranker score filtering is validated as `0.0–1.0`; its selected
+default remains the prior evidence-backed `0.0` value. The live A/B isolated
+request temperature only, so top-p, max tokens, thinking, and thinking budget
+remain observed deployment values rather than ticket-06 calibrations.
+
+The manifest now includes a deliberate ambiguity case reusing `logo_max.png`.
+The company logo cannot uniquely support either model, so the safe expected
+outcome is abstention/rejection with zero expected sources. Its manifest hash
+changed and the nine-case rescored metrics are current. Feature-on is selected
+over feature-off for rejection behavior, but its latency cost is substantial and
+acceptance remains unresolved. Unmet cases remain explicit: the pronoun case
+fails both temperatures, J10A expected evidence is pages 1/2 but output cites
+page 4 in both, unsupported positive details remain, and candidate/fusion/
+threshold defaults were not isolated by the temperature run. Older pre-strict
+feature reports are legacy context only; the final checked-in strict nine-case
+feature off/on A/B selects feature-on for rejection behavior.
+
+The lexical negation heuristic is harness correctness for the calibration metric
+false positive, not a product or deployment behavior claim.
+
+The scoped Compose fallback change is only the image budget 5→3; VLM temperature
+remains the pre-ticket fallback `0.6` because the corrected comparison is tied on
+manual groundedness. Active environment overrides may differ.
+
+Raw-score, RRF-absolute, and margin thresholds are telemetry-only. Ticket 08
+evidence found no separation between match and no-match cases, so these values
+must not become ineffective quality gates. The manifest records deliberate
+ambiguity as present, reusing `logo_max.png`, and it passes manual adjudication
+as a safe abstention/rejection case. See
+`docs/research/evidence/ticket-06-calibration-2026-08-12.json` and the evaluator
+README for the bounded call budget and comparison command.
+
+The final evidence still has unmet cases: J10A expects evidence from pages 1/2,
+but the output cites page 4. This is not an all-cases-pass claim.
+
 
 ## Related Topics
 

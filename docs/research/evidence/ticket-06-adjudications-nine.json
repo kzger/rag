@@ -1,0 +1,34 @@
+{
+  "schema_version": "ticket-06-independent-adjudication-v1",
+  "method": "Independent manual oracle review of exact checked-in report cases; categories record grounded identification, safe rejection, citation support, and unsupported-detail observations.",
+  "limitations": "This review is not hash-bound exhaustive atomic-claim adjudication. It is sufficient for the reported 2/4 identification and rejection comparisons, but is not a fully reproducible claim-level adjudication artifact.",
+  "reports": {
+    "ticket-06-vlm-temp-0.0-nine-rescored.json": {"sha256": "1aae24f94d04096c573fef7a67f12ea06c70d4daff2f67c8b0e3aed9a3f5a2c1"},
+    "ticket-06-vlm-temp-0.1-nine-rescored.json": {"sha256": "722e91d7255fb07ea89cab58dab70298695155ac024ec0e8179253b114b54ec6"},
+    "ticket-06-feature-off-nine-rescored.json": {"sha256": "7fde80051c639571636e43b8700123b10fc5edd166a4e399fec172674bbbe594"},
+    "ticket-06-feature-on-nine-rescored.json": {"sha256": "438e0fbde83a2caad5b55e35bd3ff4bf0d3a80766fbfe5af2a9bd2d385366a23"}
+  },
+  "case_verdicts": {
+    "identification_cases": {
+      "j7ef-weak-what": {"grounded_identification": "correct", "citation": "supports expected page", "unsupported_details": "present"},
+      "j7ef-pronoun-confirmation": {"grounded_identification": "incorrect_false_denial", "citation": "expected page cited but answer denies identity", "unsupported_details": "present"},
+      "j7ef-ocr-brand-model": {"grounded_identification": "correct", "citation": "supports expected page", "unsupported_details": "minor_or_present"},
+      "j10a-similar-model-disambiguation": {"grounded_identification": "correct_model_but_citation_page_wrong", "citation": "output page 4; expected evidence pages 1/2", "unsupported_details": "present"}
+    },
+    "rejection_cases": {
+      "logo-weak-what": {"safe_rejection": {"feature_off": false, "feature_on": true, "temperature_0.0": true, "temperature_0.1": true}, "citation": "no citation expected"},
+      "logo-pronoun-confirmation": {"safe_rejection": {"feature_off": false, "feature_on": true, "temperature_0.0": true, "temperature_0.1": true}, "citation": "no citation expected"},
+      "consecutive-image-isolation-baseline": {"safe_rejection": {"feature_off": false, "feature_on": true, "temperature_0.0": true, "temperature_0.1": true}, "citation": "no citation expected"},
+      "no-text-product-no-match": {"safe_rejection": {"feature_off": false, "feature_on": true, "temperature_0.0": true, "temperature_0.1": true}, "citation": "no citation expected"},
+      "logo-deliberate-ambiguity": {"safe_rejection": {"feature_off": false, "feature_on": true, "temperature_0.0": true, "temperature_0.1": true}, "citation": "no citation expected", "ground_truth": "logo cannot uniquely support J7EF Plus or J10A"}
+    }
+  },
+  "summary": {
+    "temperature_0.0": {"grounded_identification": "2/4", "rejection": "5/5"},
+    "temperature_0.1": {"grounded_identification": "2/4", "rejection": "5/5"},
+    "feature_off": {"grounded_identification": "2/4", "rejection": "1/5"},
+    "feature_on": {"grounded_identification": "2/4", "rejection": "5/5"},
+    "unsupported_summary": "Unsupported positive details remain in identification answers; lexical unsupported-claim values are diagnostic.",
+    "selection": "Feature-on is selected for rejection behavior; temperature remains unresolved."
+  }
+}

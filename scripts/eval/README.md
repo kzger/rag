@@ -210,6 +210,98 @@ exact deterministic scoring rules. Images are encoded only in live requests;
 reports contain paths and hashes, and any data URI echoed by a service is
 redacted.
 
+### Calibration and A/B comparison
+
+Use the checked-in manifest for reproducible same-dataset runs. Reports are
+compatible only when dataset version, manifest filename and SHA-256 content
+hash, every asset hash, model, and collection match; the comparison command
+fails closed otherwise. Selecting baseline/candidate additionally requires
+complete explicit server provenance and at least one changed calibration key;
+`neither` is valid for partial provenance. Deltas are
+candidate minus baseline, so negative latency is faster:
+
+```bash
+uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
+  --dataset scripts/eval/multimodal_accuracy_cases.json --endpoint http://127.0.0.1:8081 \
+  --collection jorjin_glasses --model Qwen/Qwen3.6-27B-FP8 --vdb-top-k 100 \
+  --reranker-top-k 5 --request-vlm-temperature 0.0 --variant baseline \
+  --server-settings results/remote-multimodal-settings.json --output results/baseline.json
+uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
+  --dataset scripts/eval/multimodal_accuracy_cases.json --endpoint http://127.0.0.1:8081 \
+  --collection jorjin_glasses --model Qwen/Qwen3.6-27B-FP8 --vdb-top-k 100 \
+  --reranker-top-k 5 --request-vlm-temperature 0.1 --variant candidate \
+  --server-settings results/remote-multimodal-settings.json --output results/candidate.json
+uv run --project scripts/eval python scripts/eval/compare_multimodal_reports.py \
+  --baseline results/baseline.json --candidate results/candidate.json \
+  --selected neither --selection-rationale "Comparison only; selection requires complete provenance." \
+  --output results/comparison.json
+```
+
+Remote server settings are never inferred from the evaluator host. To bind
+non-sensitive deployment provenance, provide a sanitized JSON file following
+`multimodal_server_settings.example.json`:
+
+```bash
+  --server-settings results/remote-multimodal-settings.json
+```
+
+The file is whitelisted to known calibration keys and validates expected JSON
+types. Without it, report deployment settings are `null` with provenance
+`unavailable`; they must not be described as Compose defaults. Capturing the
+evaluator process environment is available only explicitly with
+`--capture-local-environment` and is labeled `local-process-environment`, not
+remote provenance. Never put credentials or endpoint secrets in the artifact.
+The Compose fallback is only a fallback: an active `deploy/compose/.env` or
+explicit environment can override it. That user-owned source-of-truth file is
+not changed by ticket 06.
+
+The comparison report includes quality and TTFT/total P50/P95 deltas, both
+configurations, selection rationale, and unmet cases. Missing metrics or failed
+cases are reported rather than treated as passing evidence. The report metadata
+distinguishes request fields from server/deployment settings; secrets are never
+copied. The measured request budget is one retrieval probe and one streamed
+generation per manifest case. Internal deployment calls remain bounded
+separately: query understanding is at most one bounded call per request when
+enabled, and verification is at most one bounded call per request when enabled.
+These internal calls are not counted as extra evaluator requests.
+
+The corrected nine-case strict-provenance comparison leaves temperature
+calibration unresolved: lexical quality is tied at `0.50` for both, manual
+grounded identification is `2/4` for both, and rejection is `5/5` for both.
+Neither shows superior groundedness. The
+metadata records the exact
+`MultimodalAccuracyConfig` defaults, including
+query-understanding, candidate/fusion, verification, abstention, and image
+budget knobs. Raw/RRF
+absolute and margin thresholds are telemetry-only per ticket 08: existing
+evidence showed no separation, so no ineffective gate is invented. See the
+non-sensitive evidence artifact under
+`docs/research/evidence/ticket-06-calibration-2026-08-12.json`.
+
+The scoped Compose fallback change is only `APP_VLM_MAX_TOTAL_IMAGES` 5→3.
+`APP_VLM_TEMPERATURE` remains at its pre-ticket fallback `0.6` because the
+temperature comparison is tied on manual groundedness. Active environment
+overrides may differ; the user-owned `.env` is not changed.
+
+Feature-on is selected over feature-off for rejection behavior, but its latency
+cost is substantial and acceptance remains unresolved. The nine-case ambiguity
+case passes manual review and rescored lexical rejection is `1.0` at both
+temperatures. The manifest includes a deliberate ambiguity case reusing
+`logo_max.png`.
+Because the company logo cannot uniquely support either model, its safe expected
+outcome is abstention/rejection with zero expected sources. The manifest hash
+changed and the nine-case rescored metrics are current. Remaining failures
+include pronoun false denial, J10A expected evidence pages 1/2 versus output
+page 4, unsupported positive details, unresolved latency acceptance, and
+unisolated candidate/fusion/threshold values. Older pre-strict feature reports
+are legacy context only. The final checked-in
+strict nine-case feature off/on A/B is compatible with the current manifest and
+selects feature-on for rejection behavior.
+
+The lexical negation heuristic is harness correctness: it prevents the known
+identity-denial false positive from being counted as identification. It is not
+a product or deployment behavior claim.
+
 ### Annotating cases
 
 Three conventions keep the lexical scoring honest; each exists because violating
@@ -231,7 +323,8 @@ it produced a false failure against a correct answer:
   J10A case expects pages 1 (text `J10ASales Kit`) and 2 (product image and spec
   table) instead.
 
-Lexical scoring in the live report is diagnostic only. To publish verified
+Lexical scoring in the live report is diagnostic only; it is not manual
+adjudication and must not be treated as authoritative. To publish verified
 identification, unsupported-claim, and rejection metrics, review each exact
 answer against its query image and cited page, map every material factual claim
 to a literal answer quote, attest exhaustive coverage, record support and

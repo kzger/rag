@@ -1,5 +1,12 @@
 {
   "version": "jorjin-glasses-weak-query-v1",
+  "ambiguity": {
+    "required": true,
+    "present": true,
+    "reason": "The manifest reuses the checked-in company logo asset for a deliberately ambiguous model-choice prompt. A logo identifies the company but cannot uniquely support either J7EF Plus or J10A.",
+    "safe_outcome": "abstain_or_reject",
+    "ground_truth_asset": "../../image/logo_max.png"
+  },
   "cases": [
     {
       "id": "j7ef-weak-what",
@@ -159,6 +166,24 @@
         "J7EF Plus",
         "J10A",
         "JORJIN"
+      ],
+      "expected_rejection": true
+    },
+    {
+      "id": "logo-deliberate-ambiguity",
+      "prompt": "這是 J7EF Plus 還是 J10A？",
+      "image": "../../image/logo_max.png",
+      "coverage": [
+        "deliberate-ambiguity",
+        "knowledge-base-no-match",
+        "similar-products"
+      ],
+      "expected_sources": [],
+      "accepted_answer_terms": [],
+      "forbidden_answer_terms": [
+        "J7EF Plus",
+        "J7EF+",
+        "J10A"
       ],
       "expected_rejection": true
     }
