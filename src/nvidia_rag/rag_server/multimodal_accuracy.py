@@ -47,6 +47,7 @@ class MultimodalVerificationDecision:
     outcome: VerificationOutcome
     selected_candidate: str | None = None
     abstention_reason: str = ""
+    candidate_evidence: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -83,10 +84,14 @@ def _contains_canonical_product_line(text: str, canonical: str) -> bool:
     canonical = canonicalize_product_line(canonical)
     if not canonical:
         return False
-    pattern = r"(?<![a-z0-9])" + r"[^a-z0-9]*".join(
-        re.escape(character) for character in canonical
-    ) + r"(?![a-z0-9])"
-    return re.search(pattern, unicodedata.normalize("NFKC", text).casefold()) is not None
+    pattern = (
+        r"(?<![a-z0-9])"
+        + r"[^a-z0-9]*".join(re.escape(character) for character in canonical)
+        + r"(?![a-z0-9])"
+    )
+    return (
+        re.search(pattern, unicodedata.normalize("NFKC", text).casefold()) is not None
+    )
 
 
 def _strong_model_tokens(value: str) -> list[str]:
@@ -147,8 +152,12 @@ def derive_query_model_matches(
                 source_family=_candidate_source_name(document),
             )
             continue
-        source_tokens = set(_normalized_alphanumeric_tokens(_candidate_source_name(document)))
-        matched = next((token for token in query_tokens if token in source_tokens), None)
+        source_tokens = set(
+            _normalized_alphanumeric_tokens(_candidate_source_name(document))
+        )
+        matched = next(
+            (token for token in query_tokens if token in source_tokens), None
+        )
         if matched is not None:
             matches[candidate_id] = ModelTextMatch(
                 candidate_id,
@@ -178,9 +187,7 @@ def derive_product_line_matches(
             resolved_family = alias_families.get(canonical_alias)
             if (
                 canonical_alias not in eligible_aliases
-                or not _contains_canonical_product_line(
-                    understanding.ocr_text, alias
-                )
+                or not _contains_canonical_product_line(understanding.ocr_text, alias)
                 or not resolved_family
                 or candidate_family != resolved_family
                 or not page_tokens
@@ -265,10 +272,23 @@ def parse_candidate_verification(
     seen: set[str] = set()
     valid_decisions = {"match", "mismatch", "insufficient"}
     valid_evidence = {
-        "visual_identity", "exact_visible_text", "generic_similarity", "none"
+        "visual_identity",
+        "exact_visible_text",
+        "generic_similarity",
+        "none",
     }
     for item in raw_candidates:
         if not isinstance(item, dict):
+            return None
+        if not {
+            "candidate_id",
+            "decision",
+            "confidence",
+            "evidence_type",
+            "supporting_evidence",
+            "conflicts",
+            "resolved_identity",
+        }.issubset(item):
             return None
         candidate_id = item.get("candidate_id")
         decision = item.get("decision")
@@ -291,8 +311,8 @@ def parse_candidate_verification(
             isinstance(value, str) for value in conflicts
         ):
             return None
-        supporting_evidence = item.get("supporting_evidence", "")
-        resolved_identity = item.get("resolved_identity", "")
+        supporting_evidence = item.get("supporting_evidence")
+        resolved_identity = item.get("resolved_identity")
         if not isinstance(supporting_evidence, str) or not isinstance(
             resolved_identity, str
         ):
@@ -324,16 +344,22 @@ def decide_multimodal_outcome(
 ) -> MultimodalVerificationDecision:
     """Apply identity evidence policy without using retrieval or fusion scores."""
     if candidates is None:
-        return MultimodalVerificationDecision("ambiguous", abstention_reason="malformed verifier output")
+        return MultimodalVerificationDecision(
+            "ambiguous", abstention_reason="malformed verifier output"
+        )
     if not candidates:
-        return MultimodalVerificationDecision("no_match", abstention_reason="no candidates")
+        return MultimodalVerificationDecision(
+            "no_match", abstention_reason="no candidates"
+        )
     qualified = [
         item
         for item in candidates
-        if item.decision in {"match", "mismatch"}
+        if item.decision == "match"
         and item.confidence >= min_match_confidence
         and not item.conflicts
         and item.evidence_type in {"visual_identity", "exact_visible_text"}
+        and item.resolved_identity.strip()
+        and item.supporting_evidence.strip()
         and not _is_brand_only_identity(item)
     ]
     bridge_matches = [
@@ -341,28 +367,46 @@ def decide_multimodal_outcome(
         *(product_line_matches or {}).values(),
     ]
     bridge_tokens = {item.matched_token.casefold() for item in bridge_matches}
-    contradictory_tokens = {
-        token
-        for item in candidates
-        if item.decision == "match"
-        and item.confidence >= min_match_confidence
-        for token in _strong_model_tokens(
-            f"{item.resolved_identity} {item.supporting_evidence}"
-        )
-        if token.casefold() not in bridge_tokens
-    }
     bridge_families = {
-        match.source_family
-        for match in bridge_matches
-        if match.source_family
+        match.source_family for match in bridge_matches if match.source_family
     }
-    if (len(bridge_tokens) > 1 and len(bridge_families) != 1) or len(bridge_families) > 1 or (
-        contradictory_tokens
-        and bridge_tokens
-        and contradictory_tokens.isdisjoint(bridge_tokens)
+    concrete_verifier_items = [
+        item
+        for item in candidates
+        if item.evidence_type in {"visual_identity", "exact_visible_text"}
+        and item.resolved_identity.strip()
+        and not _is_brand_only_identity(item)
+    ]
+    concrete_identity_conflict = any(
+        (
+            item.decision == "mismatch"
+            or (
+                set(
+                    _strong_model_tokens(
+                        f"{item.resolved_identity} {item.supporting_evidence}"
+                    )
+                )
+                and set(
+                    _strong_model_tokens(
+                        f"{item.resolved_identity} {item.supporting_evidence}"
+                    )
+                ).isdisjoint(bridge_tokens)
+            )
+        )
+        for item in concrete_verifier_items
+    )
+    if bridge_matches and (
+        len(bridge_tokens) > 1
+        or len(bridge_families) > 1
+        or concrete_identity_conflict
+        or any(item.conflicts for item in candidates)
     ):
         return MultimodalVerificationDecision(
-            "ambiguous", abstention_reason="conflicting model identities"
+            "ambiguous",
+            abstention_reason="conflicting model identities",
+            candidate_evidence=_candidate_evidence_details(
+                candidates, min_confidence=min_match_confidence
+            ),
         )
     if bridge_matches:
         selected = next(
@@ -370,6 +414,8 @@ def decide_multimodal_outcome(
                 item
                 for item in candidates
                 if item.candidate_id in {match.candidate_id for match in bridge_matches}
+                and item.decision == "mismatch"
+                and item.evidence_type == "generic_similarity"
             ),
             None,
         )
@@ -377,9 +423,19 @@ def decide_multimodal_outcome(
             return MultimodalVerificationDecision(
                 "verified", selected_candidate=selected.candidate_id
             )
-    identities = {item.resolved_identity.strip() for item in qualified if item.resolved_identity.strip()}
+    identities = {
+        item.resolved_identity.strip()
+        for item in qualified
+        if item.resolved_identity.strip()
+    }
     if len(identities) > 1:
-        return MultimodalVerificationDecision("ambiguous", abstention_reason="conflicting identities")
+        return MultimodalVerificationDecision(
+            "ambiguous",
+            abstention_reason="conflicting identities",
+            candidate_evidence=_candidate_evidence_details(
+                candidates, min_confidence=min_match_confidence
+            ),
+        )
     high_confidence_matches = [
         item
         for item in candidates
@@ -387,11 +443,13 @@ def decide_multimodal_outcome(
         and item.confidence >= min_match_confidence
         and item.resolved_identity.strip()
     ]
-    if len(
-        {item.resolved_identity.strip() for item in high_confidence_matches}
-    ) > 1:
+    if len({item.resolved_identity.strip() for item in high_confidence_matches}) > 1:
         return MultimodalVerificationDecision(
-            "ambiguous", abstention_reason="competing identities"
+            "ambiguous",
+            abstention_reason="competing identities",
+            candidate_evidence=_candidate_evidence_details(
+                candidates, min_confidence=min_match_confidence
+            ),
         )
     if qualified:
         return MultimodalVerificationDecision(
@@ -403,19 +461,70 @@ def decide_multimodal_outcome(
         if item.decision == "mismatch" and item.confidence >= min_no_match_confidence
     ]
     if len(high_mismatches) == len(candidates):
-        return MultimodalVerificationDecision("no_match", abstention_reason="all candidates mismatched")
+        return MultimodalVerificationDecision(
+            "no_match", abstention_reason="all candidates mismatched"
+        )
     if all(
         item.confidence >= min_no_match_confidence
         and item.evidence_type not in {"visual_identity", "exact_visible_text"}
         for item in candidates
     ):
-        return MultimodalVerificationDecision("no_match", abstention_reason="no identity evidence")
-    return MultimodalVerificationDecision("ambiguous", abstention_reason="insufficient or conflicting evidence")
+        return MultimodalVerificationDecision(
+            "no_match", abstention_reason="no identity evidence"
+        )
+    return MultimodalVerificationDecision(
+        "ambiguous",
+        abstention_reason="insufficient or conflicting evidence",
+        candidate_evidence=_candidate_evidence_details(
+            candidates, min_confidence=min_match_confidence
+        ),
+    )
+
+
+def _candidate_evidence_details(
+    candidates: list[CandidateVerification],
+    *,
+    min_confidence: float,
+) -> tuple[str, ...]:
+    """Return concrete identity evidence suitable for an ambiguous response."""
+    details: list[str] = []
+    for candidate in candidates:
+        if (
+            candidate.decision != "match"
+            or candidate.confidence < min_confidence
+            or candidate.evidence_type not in {"visual_identity", "exact_visible_text"}
+            or not candidate.resolved_identity.strip()
+            or not candidate.supporting_evidence.strip()
+            or _is_brand_only_identity(candidate)
+        ):
+            continue
+        evidence = _safe_evidence_text(candidate.supporting_evidence)
+        identity = _safe_evidence_text(candidate.resolved_identity)
+        if not evidence or not identity:
+            continue
+        conflicts = "; ".join(
+            _safe_evidence_text(conflict)
+            for conflict in candidate.conflicts
+            if _safe_evidence_text(conflict)
+        )
+        detail = f"{candidate.candidate_id}: {identity} ({evidence})"
+        if conflicts:
+            detail += f"; conflicts: {conflicts}"
+        details.append(detail)
+    return tuple(details[:2])
+
+
+def _safe_evidence_text(value: str) -> str:
+    """Normalize and bound verifier text before returning it to a user."""
+    value = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value)
+    return " ".join(value.split())[:300]
 
 
 def _is_brand_only_identity(candidate: CandidateVerification) -> bool:
     """Reject exact text that identifies only the known brand/logo, not a model."""
-    identity_tokens = set(re.findall(r"[a-z0-9]+", candidate.resolved_identity.casefold()))
+    identity_tokens = set(
+        re.findall(r"[a-z0-9]+", candidate.resolved_identity.casefold())
+    )
     evidence_tokens = set(
         re.findall(r"[a-z0-9]+", candidate.supporting_evidence.casefold())
     )
@@ -424,6 +533,7 @@ def _is_brand_only_identity(candidate: CandidateVerification) -> bool:
     return bool(identity_tokens & _KNOWN_BRAND_IDENTITIES) and not (
         evidence_tokens - _BRAND_ONLY_TERMS
     )
+
 
 QUERY_UNDERSTANDING_FIELDS: tuple[tuple[str, str], ...] = (
     ("ocr_text", "OCR text"),
@@ -536,24 +646,31 @@ def build_enriched_text_query(
     return "\n".join(parts)
 
 
-def _page_identity(document: Document) -> tuple[str, int] | None:
-    """Return a document's stable source and page identity, if available."""
-    source = document.metadata.get("source")
-    source_name = source.get("source_name") if isinstance(source, dict) else source
-    content_metadata = document.metadata.get("content_metadata")
-    page_number = (
-        content_metadata.get("page_number")
-        if isinstance(content_metadata, dict)
-        else None
-    )
-    if (
-        not isinstance(source_name, str)
-        or not source_name
-        or not isinstance(page_number, int)
-        or isinstance(page_number, bool)
-    ):
+def page_identity(document: Document) -> tuple[str, int] | None:
+    """Return a document's stable source/page identity across nv-ingest and NRL layouts."""
+    metadata = document.metadata or {}
+    content_metadata = metadata.get("content_metadata")
+    if not isinstance(content_metadata, dict):
+        content_metadata = {}
+    source = metadata.get("source")
+    if isinstance(source, dict):
+        source_name = source.get("source_name") or source.get("source_id")
+    else:
+        source_name = source or metadata.get("path") or metadata.get("filename")
+    page_number = content_metadata.get("page_number")
+    if page_number is None:
+        page_number = metadata.get("page_number")
+    if page_number is None:
+        page_number = content_metadata.get("page_num") or content_metadata.get("page")
+    if not isinstance(source_name, str) or not source_name or page_number is None:
         return None
-    return source_name, page_number
+    if isinstance(page_number, bool):
+        return None
+    if isinstance(page_number, int):
+        return source_name, page_number
+    if isinstance(page_number, str) and re.fullmatch(r"\d+", page_number):
+        return source_name, int(page_number)
+    return None
 
 
 def dedupe_by_page(documents: list[Document], limit: int) -> list[Document]:
@@ -563,7 +680,7 @@ def dedupe_by_page(documents: list[Document], limit: int) -> list[Document]:
     result: list[Document] = []
     seen: set[tuple[str, int]] = set()
     for document in documents:
-        identity = _page_identity(document)
+        identity = page_identity(document)
         if identity is None:
             logger.warning(
                 "Skipping candidate without source/page metadata for multimodal fusion"
@@ -612,7 +729,7 @@ def fuse_visual_text_candidates(
     text_by_identity: dict[tuple[str, int], tuple[int, Document]] = {}
 
     for rank, document in enumerate(visual_documents, start=1):
-        identity = _page_identity(document)
+        identity = page_identity(document)
         if identity is None:
             logger.warning(
                 "Skipping candidate without source/page metadata for multimodal fusion"
@@ -621,7 +738,7 @@ def fuse_visual_text_candidates(
         visual_by_identity.setdefault(identity, (rank, document))
 
     for rank, document in enumerate(text_documents, start=1):
-        identity = _page_identity(document)
+        identity = page_identity(document)
         if identity is None:
             logger.warning(
                 "Skipping candidate without source/page metadata for multimodal fusion"

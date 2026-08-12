@@ -67,6 +67,7 @@ from nvidia_rag.rag_server.multimodal_accuracy import (
     derive_product_line_matches,
     derive_query_model_matches,
     fuse_visual_text_candidates,
+    page_identity,
 )
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
 from nvidia_rag.rag_server.reflection import (
@@ -340,9 +341,16 @@ class NvidiaRAG:
             first_chunk = await stream_gen.__anext__()
 
             async def complete_stream():
-                yield first_chunk
-                async for chunk in stream_gen:
-                    yield chunk
+                try:
+                    yield first_chunk
+                    async for chunk in stream_gen:
+                        yield chunk
+                finally:
+                    close = getattr(stream_gen, "aclose", None)
+                    if callable(close):
+                        result = close()
+                        if hasattr(result, "__await__"):
+                            await result
 
             return complete_stream()
         except StopAsyncIteration:
@@ -2101,6 +2109,35 @@ class NvidiaRAG:
 
             # Eagerly prefetch first chunk to catch errors early
             prefetched_vlm_stream = await self._eager_prefetch_astream(vlm_generator)
+            source_close_callback = None
+
+            if has_images and self.config.enable_multimodal_accuracy:
+                direct_stream = prefetched_vlm_stream
+                source_closed = False
+
+                async def close_source_once() -> None:
+                    nonlocal source_closed
+                    if source_closed:
+                        return
+                    source_closed = True
+                    close = getattr(vlm_generator, "aclose", None)
+                    if callable(close):
+                        await close()
+
+                source_close_callback = close_source_once
+
+                async def disclosed_stream() -> AsyncGenerator[str, None]:
+                    try:
+                        yield (
+                            "本次回答未使用知識庫，以下內容來自直接多模態模型回答。"
+                            " Knowledge base was not used for this answer."
+                        )
+                        async for chunk in direct_stream:
+                            yield chunk
+                    finally:
+                        await close_source_once()
+
+                prefetched_vlm_stream = disclosed_stream()
 
             logger.info("VLM stream initiated successfully (first chunk received)")
             logger.info("-" * 80)
@@ -2114,6 +2151,7 @@ class NvidiaRAG:
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                     token_usage=vlm_token_usage,
+                    close_callback=source_close_callback,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
             )
@@ -2306,20 +2344,20 @@ class NvidiaRAG:
     ) -> MultimodalVerificationDecision:
         """Run the one-shot candidate verifier and apply the deterministic policy."""
         cfg = self.config.multimodal_accuracy
+        if not candidates:
+            return MultimodalVerificationDecision(
+                "no_match", abstention_reason="no candidates"
+            )
         verification_candidates: list[Document] = []
         for candidate in candidates[: cfg.verification_max_candidates]:
-            candidate_identity = self._document_page_identity(candidate)
+            candidate_identity = page_identity(candidate)
             page_docs = [
                 doc
                 for doc in expanded_context
-                if self._document_page_identity(doc) == candidate_identity
+                if page_identity(doc) == candidate_identity
             ]
             image_doc = next(
-                (
-                    doc
-                    for doc in page_docs
-                    if self._is_page_image_document(doc)
-                ),
+                (doc for doc in page_docs if self._is_page_image_document(doc)),
                 None,
             )
             # With page expansion disabled, the fused visual candidate itself is
@@ -2339,7 +2377,9 @@ class NvidiaRAG:
             verification_candidates.append(
                 Document(
                     page_content="\n\n".join(
-                        doc.page_content for doc in (page_docs or [candidate]) if doc.page_content
+                        doc.page_content
+                        for doc in (page_docs or [candidate])
+                        if doc.page_content
                     ),
                     metadata=candidate_metadata,
                 )
@@ -2441,7 +2481,11 @@ class NvidiaRAG:
             if verdict is None:
                 logger.warning("Product-line alias %s is not globally unique", alias)
         except Exception:
-            logger.warning("Product-line alias uniqueness query failed for %s", alias, exc_info=True)
+            logger.warning(
+                "Product-line alias uniqueness query failed for %s",
+                alias,
+                exc_info=True,
+            )
             verdict = None
         cache[key] = verdict
         return verdict
@@ -2462,45 +2506,29 @@ class NvidiaRAG:
         source = metadata.get("source")
         return isinstance(source, dict) and bool(source.get("source_location"))
 
-    @staticmethod
-    def _document_page_identity(
-        document: Document,
-    ) -> tuple[str, int] | None:
-        """Read page identity from nv-ingest and NRL metadata layouts."""
-        metadata = getattr(document, "metadata", {}) or {}
-        content_metadata = metadata.get("content_metadata")
-        if not isinstance(content_metadata, dict):
-            content_metadata = {}
-        source = metadata.get("source")
-        if isinstance(source, dict):
-            source_name = source.get("source_name") or source.get("source_id")
-        else:
-            source_name = source or metadata.get("path") or metadata.get("filename")
-        page_number = content_metadata.get("page_number")
-        if page_number is None:
-            page_number = metadata.get("page_number")
-        if page_number is None:
-            page_number = content_metadata.get("page_num") or content_metadata.get("page")
-        if not isinstance(source_name, str) or not source_name or page_number is None:
-            return None
-        try:
-            return source_name, int(page_number)
-        except (TypeError, ValueError):
-            return None
-
     def _multimodal_abstention_response(
         self,
         *,
         model: str,
         collection_name: str,
         reason: str,
+        outcome: str = "no_match",
+        candidate_evidence: tuple[str, ...] = (),
         metrics: OtelMetrics | None,
     ) -> RAGResponse:
         """Return canonical streamed abstention text with no citations."""
-        text = (
-            "無法確認此圖片與所選知識庫中的項目相符，因為沒有足夠的匹配證據。"
-            "I cannot confirm a matching item in the selected knowledge base."
-        )
+        if outcome == "ambiguous":
+            evidence = "；".join(candidate_evidence)
+            text = (
+                "無法唯一判定此圖片對應的知識庫項目；以下僅列出具體身份證據支持的候選："
+                f"{evidence or '沒有足夠的身份證據'}。"
+                " I cannot uniquely identify the item from the selected knowledge base."
+            )
+        else:
+            text = (
+                "知識庫無法確認此圖片對應的項目，未提供確定的產品身份。"
+                " The knowledge base cannot confirm a matching item."
+            )
         logger.info("Multimodal verification abstention: %s", reason)
         return RAGResponse(
             generate_answer_async(
@@ -2527,12 +2555,8 @@ class NvidiaRAG:
         if index < 0 or index >= len(candidates):
             return [], []
         selected = candidates[index]
-        identity = NvidiaRAG._document_page_identity(selected)
-        filtered = [
-            doc
-            for doc in expanded_context
-            if NvidiaRAG._document_page_identity(doc) == identity
-        ]
+        identity = page_identity(selected)
+        filtered = [doc for doc in expanded_context if page_identity(doc) == identity]
         page_evidence = filtered or [selected]
         return page_evidence, page_evidence
 
@@ -3769,7 +3793,8 @@ class NvidiaRAG:
                     retrieval_start_time = time.time()
                     if is_image_query:
                         if self.config.enable_multimodal_accuracy:
-                            multimodal_result = await self._dual_retrieval_for_image_query(
+                            multimodal_result = (
+                                await self._dual_retrieval_for_image_query(
                                     query=query,
                                     retriever_query=retriever_query,
                                     chat_history=chat_history,
@@ -3783,6 +3808,7 @@ class NvidiaRAG:
                                     otel_ctx=otel_ctx,
                                     vlm_settings=vlm_settings,
                                 )
+                            )
                             context_to_show = multimodal_result.documents
                             multimodal_query_understanding = (
                                 multimodal_result.query_understanding
@@ -3894,14 +3920,17 @@ class NvidiaRAG:
                             validated_collections[0] if validated_collections else ""
                         ),
                         reason=verification.abstention_reason,
+                        outcome=verification.outcome,
+                        candidate_evidence=verification.candidate_evidence,
                         metrics=metrics,
                     )
-                context_to_show, docs_for_citations = (
-                    self._filter_context_to_verified_candidate(
-                        verification,
-                        multimodal_candidates,
-                        context_to_show,
-                    )
+                (
+                    context_to_show,
+                    docs_for_citations,
+                ) = self._filter_context_to_verified_candidate(
+                    verification,
+                    multimodal_candidates,
+                    context_to_show,
                 )
 
             if enable_vlm_inference or is_image_query:

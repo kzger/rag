@@ -1,12 +1,18 @@
 """Public generate seam tests for multimodal accuracy retrieval wiring."""
 
+import asyncio
+import json
 from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.documents import Document
 from nvidia_rag.rag_server.main import NvidiaRAG
-from nvidia_rag.rag_server.multimodal_accuracy import QueryUnderstanding
+from nvidia_rag.rag_server.multimodal_accuracy import (
+    CandidateVerification,
+    QueryUnderstanding,
+)
 
 
 class DummyPrompt:
@@ -94,8 +100,8 @@ def page_doc(
     text_score: float | None = None,
 ) -> Document:
     metadata: dict[str, object] = {
-        "source": {"source_name": source},
-        "content_metadata": {"page_number": page},
+        "source": {"source_name": source, "source_id": source},
+        "content_metadata": {"page_number": page, "type": "text"},
         "collection_name": "test",
     }
     if visual_rank is not None:
@@ -111,7 +117,9 @@ def page_doc(
 
 
 @pytest.fixture(autouse=True)
-def stub_chat_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+def stub_chat_prompt(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
     monkeypatch.setenv("ENABLE_REFLECTION", "false")
     import nvidia_rag.rag_server.main as main
 
@@ -130,7 +138,12 @@ def stub_chat_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> AsyncIterator[str]:
         yield "ok"
 
-    monkeypatch.setattr(main, "generate_answer_async", mock_generate_answer_async)
+    real_response_tests = {
+        "test_direct_disclosure_closes_underlying_stream_on_early_close",
+        "test_public_generate_verified_keeps_selected_context_and_citation",
+    }
+    if request.node.name not in real_response_tests:
+        monkeypatch.setattr(main, "generate_answer_async", mock_generate_answer_async)
 
 
 def multimodal_messages() -> list[dict[str, object]]:
@@ -161,6 +174,141 @@ async def generate_multimodal(rag: NvidiaRAG) -> None:
         enable_vlm_inference=True,
         vlm_max_total_images=2,
     )
+
+
+async def generate_direct_multimodal(rag: NvidiaRAG, *, accuracy_enabled: bool) -> Any:
+    rag.config.enable_multimodal_accuracy = accuracy_enabled
+    return await rag.generate(
+        messages=multimodal_messages(),
+        use_knowledge_base=False,
+        enable_vlm_inference=True,
+        vlm_max_total_images=2,
+    )
+
+
+def sse_payloads(chunks: list[str]) -> list[dict[str, object]]:
+    """Decode the JSON objects emitted by the public streaming response."""
+    return [
+        json.loads(chunk.removeprefix("data: ").strip())
+        for chunk in chunks
+        if chunk.startswith("data: ")
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "accuracy_enabled, disclosure_expected", [(True, True), (False, False)]
+)
+async def test_direct_multimodal_no_kb_disclosure_is_feature_gated(
+    monkeypatch: pytest.MonkeyPatch,
+    accuracy_enabled: bool,
+    disclosure_expected: bool,
+) -> None:
+    rag = NvidiaRAG()
+    original_chunks = ["legacy direct answer"]
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        yield original_chunks[0]
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm_class.return_value.stream_with_messages = stream
+        response = await generate_direct_multimodal(
+            rag, accuracy_enabled=accuracy_enabled
+        )
+
+    chunks = [chunk async for chunk in response.generator]
+    disclosure = "Knowledge base was not used for this answer."
+    assert any(disclosure in chunk for chunk in chunks) is disclosure_expected
+    assert any(original_chunks[0] in chunk for chunk in chunks)
+
+
+@pytest.mark.asyncio
+async def test_direct_disclosure_closes_underlying_stream_on_early_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rag = NvidiaRAG()
+    rag.config.enable_multimodal_accuracy = True
+
+    class TrackedStream:
+        def __init__(self) -> None:
+            self.closed = False
+            self.close_count = 0
+            self.yielded = False
+
+        def __aiter__(self) -> "TrackedStream":
+            return self
+
+        async def __anext__(self) -> str:
+            if self.yielded:
+                await asyncio.sleep(10)
+            self.yielded = True
+            return "legacy"
+
+        async def aclose(self) -> None:
+            self.close_count += 1
+            self.closed = True
+
+    tracked = TrackedStream()
+
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm_class.return_value.stream_with_messages = lambda **kwargs: tracked
+        response = await generate_direct_multimodal(rag, accuracy_enabled=True)
+    await response.generator.__anext__()
+    await response.generator.aclose()
+    assert tracked.closed
+    await response.generator.aclose()
+    assert tracked.close_count == 1
+
+
+@pytest.mark.asyncio
+async def test_public_generate_gate_off_keeps_legacy_final_vlm_and_citations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("legacy.pdf", 2, "legacy")]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = False
+    configure_vdb(monkeypatch, vdb)
+    final_called = False
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        nonlocal final_called
+        final_called = True
+        yield "legacy final answer"
+
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.stream_with_messages = stream
+        response = await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+        )
+
+    chunks = [chunk async for chunk in response.generator]
+    assert final_called
+    assert any("legacy final answer" in chunk for chunk in chunks)
+    assert not any("knowledge base cannot confirm" in chunk.lower() for chunk in chunks)
+    payloads = sse_payloads(chunks)
+    citations = [
+        payload["citations"] for payload in payloads if payload.get("citations")
+    ]
+    assert citations[0]["total_results"] == 1
 
 
 @pytest.mark.asyncio
@@ -207,7 +355,7 @@ async def test_generate_uses_query_understanding_and_dual_retrieval(
     assert "user question: 這是什麼？" in (vdb.last_text_query or "")
     assert {call[0] for call in vdb.calls} == {"visual", "text"}
     vlm.understand_query_async.assert_awaited_once()
-    docs = stream_kwargs["docs"]
+    docs = stream_kwargs["docs"]  # type: ignore[index]
     assert len(docs) == 2
     assert docs[0].page_content == "J7EF Plus spec sheet"
     assert docs[0].metadata["multimodal_fusion"]["fusion_score"] == pytest.approx(
@@ -423,3 +571,255 @@ async def test_verification_candidate_building_preserves_page_image_metadata(
     assert verification_candidate.metadata["source"]["source_location"] == (
         "s3://bucket/page-3.png"
     )
+
+
+@pytest.mark.asyncio
+async def test_public_generate_verified_keeps_selected_context_and_citation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("ENABLE_MULTIMODAL_VERIFICATION_GATE", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("J7EF.pdf", 3, "J7EF page")]
+    vdb.text_result = [
+        page_doc("J7EF.pdf", 3, "J7EF page"),
+        page_doc("J10A.pdf", 4, "J10A page"),
+    ]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = True
+    configure_vdb(monkeypatch, vdb)
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
+    stream_kwargs: dict[str, object] = {}
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        stream_kwargs.update(kwargs)
+        yield "verified"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(
+            return_value=QueryUnderstanding(model="J7EF")
+        )
+        vlm.verify_candidates_async = AsyncMock(
+            return_value=[
+                CandidateVerification(
+                    "C1",
+                    "match",
+                    0.95,
+                    "exact_visible_text",
+                    supporting_evidence="visible J7EF model token",
+                    resolved_identity="J7EF",
+                ),
+                CandidateVerification("C2", "insufficient", 0.4, "generic_similarity"),
+            ]
+        )
+        vlm.stream_with_messages = stream
+        response = await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+            vlm_max_total_images=2,
+        )
+
+    docs = stream_kwargs["docs"]
+    assert len(docs) == 1
+    assert docs[0].metadata["source"]["source_name"] == "J7EF.pdf"
+    chunks = [chunk async for chunk in response.generator]
+    payloads = sse_payloads(chunks)
+    citation_payloads = [
+        payload["citations"]
+        for payload in payloads
+        if payload.get("citations") is not None
+    ]
+    assert citation_payloads
+    citations = citation_payloads[0]
+    assert citations["total_results"] == 1
+    assert citations["results"][0]["document_name"] == "J7EF.pdf"
+    assert all(result["document_name"] != "J10A.pdf" for result in citations["results"])
+
+
+@pytest.mark.asyncio
+async def test_public_generate_ambiguous_lists_identity_evidence_without_final_vlm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("ENABLE_MULTIMODAL_VERIFICATION_GATE", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("J7EF.pdf", 3, "J7EF page")]
+    vdb.text_result = [
+        page_doc("J7EF.pdf", 3, "J7EF page"),
+        page_doc("J10A.pdf", 4, "J10A page"),
+        page_doc("generic.pdf", 5, "generic similarity page"),
+    ]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = True
+    configure_vdb(monkeypatch, vdb)
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
+    final_stream_called = False
+
+    async def final_stream(**kwargs: object) -> AsyncIterator[str]:
+        nonlocal final_stream_called
+        final_stream_called = True
+        yield "must not be called"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.verify_candidates_async = AsyncMock(
+            return_value=[
+                CandidateVerification(
+                    "C1",
+                    "match",
+                    0.91,
+                    "exact_visible_text",
+                    supporting_evidence="visible J7EF token",
+                    resolved_identity="J7EF Plus",
+                ),
+                CandidateVerification(
+                    "C2",
+                    "match",
+                    0.90,
+                    "visual_identity",
+                    supporting_evidence="distinctive J10A label",
+                    conflicts=("different model label",),
+                    resolved_identity="J10A",
+                ),
+                CandidateVerification(
+                    "C3",
+                    "match",
+                    0.99,
+                    "generic_similarity",
+                    resolved_identity="generic",
+                ),
+            ]
+        )
+        vlm.stream_with_messages = final_stream
+        response = await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+        )
+
+    chunks = [chunk async for chunk in response.generator]
+    assert not final_stream_called
+    assert any(
+        "J7EF Plus" in chunk and "visible J7EF token" in chunk for chunk in chunks
+    )
+    assert any("J10A" in chunk and "different model label" in chunk for chunk in chunks)
+    assert not any("generic" in chunk for chunk in chunks)
+    payloads = sse_payloads(chunks)
+    citation_payloads = [
+        payload["citations"]
+        for payload in payloads
+        if payload.get("citations") is not None
+    ]
+    assert citation_payloads[0]["total_results"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "verification_result, expected_text",
+    [
+        (None, "cannot uniquely identify"),
+        (
+            [CandidateVerification("C1", "mismatch", 0.99, "exact_visible_text")],
+            "knowledge base cannot confirm",
+        ),
+    ],
+)
+async def test_public_generate_abstains_without_final_vlm(
+    monkeypatch: pytest.MonkeyPatch,
+    verification_result: list[CandidateVerification] | None,
+    expected_text: str,
+) -> None:
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("ENABLE_MULTIMODAL_VERIFICATION_GATE", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("wrong.pdf", 1, "wrong")]
+    vdb.text_result = [page_doc("wrong.pdf", 1, "wrong")]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = True
+    configure_vdb(monkeypatch, vdb)
+    import nvidia_rag.rag_server.main as main
+    from nvidia_rag.rag_server.response_generator import generate_answer_async
+
+    monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
+    final_stream_called = False
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        nonlocal final_stream_called
+        final_stream_called = True
+        yield "unsafe final answer"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.verify_candidates_async = AsyncMock(return_value=verification_result)
+        vlm.stream_with_messages = stream
+        response = await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+            vlm_max_total_images=2,
+        )
+
+    assert not final_stream_called
+    assert response.generator is not None
+    chunks = [chunk async for chunk in response.generator]
+    response_text = "".join(
+        payload["choices"][0]["message"]["content"]
+        for payload in sse_payloads(chunks)
+        if payload.get("choices") and payload["choices"][0].get("message")
+    ).lower()
+    assert expected_text in response_text
+    payloads = sse_payloads(chunks)
+    citation_payloads = [
+        payload["citations"]
+        for payload in payloads
+        if payload.get("citations") is not None
+    ]
+    assert citation_payloads
+    assert citation_payloads[0]["total_results"] == 0
+    if expected_text == "malformed":
+        assert vlm.verify_candidates_async.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_public_generate_verification_service_error_keeps_error_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("ENABLE_MULTIMODAL_VERIFICATION_GATE", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("candidate.pdf", 1, "candidate")]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = True
+    configure_vdb(monkeypatch, vdb)
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.verify_candidates_async = AsyncMock(
+            side_effect=RuntimeError("verifier down")
+        )
+        response = await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+        )
+
+    assert response.status_code == 503

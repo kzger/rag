@@ -6,6 +6,7 @@ from langchain_core.documents import Document
 from nvidia_rag.rag_server.multimodal_accuracy import (
     PRODUCT_LINE_ALIASES,
     CandidateVerification,
+    ModelTextMatch,
     QueryUnderstanding,
     build_enriched_text_query,
     canonicalize_product_line,
@@ -14,13 +15,15 @@ from nvidia_rag.rag_server.multimodal_accuracy import (
     derive_product_line_matches,
     derive_query_model_matches,
     fuse_visual_text_candidates,
+    page_identity,
+    parse_candidate_verification,
     parse_query_understanding,
 )
 
 
 def document(
     source: str = "manual.pdf",
-    page: int = 1,
+    page: object = 1,
     content: str = "content",
     **metadata: object,
 ) -> Document:
@@ -212,6 +215,87 @@ def test_brand_only_identity_does_not_verify() -> None:
     assert result.outcome == "ambiguous"
 
 
+def test_high_confidence_ordinary_mismatch_does_not_verify() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1", "mismatch", 0.99, "exact_visible_text", resolved_identity="J10A"
+            )
+        ]
+    )
+
+    assert result.outcome == "no_match"
+
+
+def test_match_without_identity_or_evidence_does_not_verify() -> None:
+    for identity, evidence in (("", "visible token"), ("J7EF", "")):
+        result = decide_multimodal_outcome(
+            [
+                CandidateVerification(
+                    "C1",
+                    "match",
+                    0.99,
+                    "exact_visible_text",
+                    evidence,
+                    resolved_identity=identity,
+                )
+            ]
+        )
+        assert result.outcome != "verified"
+
+
+def test_ambiguous_result_contains_only_identity_evidence() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1",
+                "match",
+                0.9,
+                "exact_visible_text",
+                supporting_evidence="visible J7EF token",
+                resolved_identity="J7EF Plus",
+            ),
+            CandidateVerification(
+                "C2",
+                "match",
+                0.9,
+                "exact_visible_text",
+                supporting_evidence="visible J10A token",
+                conflicts=("different model token",),
+                resolved_identity="J10A",
+            ),
+        ]
+    )
+
+    assert result.outcome == "ambiguous"
+    assert result.candidate_evidence == (
+        "C1: J7EF Plus (visible J7EF token)",
+        "C2: J10A (visible J10A token); conflicts: different model token",
+    )
+
+
+def test_candidate_parser_requires_complete_typed_schema() -> None:
+    valid = {
+        "candidate_id": "C1",
+        "decision": "match",
+        "confidence": 0.9,
+        "evidence_type": "exact_visible_text",
+        "supporting_evidence": "visible model token",
+        "conflicts": [],
+        "resolved_identity": "J7EF Plus",
+    }
+
+    assert parse_candidate_verification(json.dumps({"candidates": [valid]}))
+    for field in valid:
+        malformed = {key: value for key, value in valid.items() if key != field}
+        assert (
+            parse_candidate_verification(
+                json.dumps({"candidates": [malformed]}), ["C1"]
+            )
+            is None
+        )
+
+
 def test_query_model_bridge_matches_page_and_source_tokens() -> None:
     understanding = QueryUnderstanding(model="J7EF Plus", ocr_text="MODEL J10A")
     matches = derive_query_model_matches(
@@ -257,6 +341,102 @@ def test_query_model_bridge_overrides_photo_layout_mismatch() -> None:
     assert result.outcome == "verified"
 
 
+def test_bridge_different_tokens_same_family_are_ambiguous() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification("C1", "mismatch", 0.99, "generic_similarity"),
+            CandidateVerification("C2", "mismatch", 0.99, "generic_similarity"),
+        ],
+        model_text_matches={
+            "C1": ModelTextMatch("C1", "J7EF", "page_text", source_family="kit.pdf"),
+            "C2": ModelTextMatch("C2", "J10A", "page_text", source_family="kit.pdf"),
+        },
+    )
+    assert result.outcome == "ambiguous"
+
+
+def test_bridge_same_token_across_pages_remains_verified() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification("C1", "mismatch", 0.99, "generic_similarity"),
+            CandidateVerification("C2", "mismatch", 0.99, "generic_similarity"),
+        ],
+        model_text_matches={
+            "C1": ModelTextMatch("C1", "J7EF", "page_text", source_family="kit.pdf"),
+            "C2": ModelTextMatch("C2", "J7EF", "page_text", source_family="kit.pdf"),
+        },
+    )
+    assert result.outcome == "verified"
+
+
+def test_bridge_does_not_override_specific_conflicting_identity() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1", "mismatch", 0.99, "exact_visible_text", resolved_identity="J10A"
+            )
+        ],
+        model_text_matches=derive_query_model_matches(
+            QueryUnderstanding(model="J7EF"),
+            [document(source="J7EF Sales kit.pdf")],
+        ),
+    )
+    assert result.outcome == "ambiguous"
+
+
+def test_bridge_does_not_override_conflicts_or_insufficient_verdict() -> None:
+    bridge = derive_query_model_matches(
+        QueryUnderstanding(model="J7EF"), [document(source="J7EF Sales kit.pdf")]
+    )
+    conflicted = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1", "mismatch", 0.99, "generic_similarity", conflicts=["other"]
+            )
+        ],
+        model_text_matches=bridge,
+    )
+    insufficient = decide_multimodal_outcome(
+        [CandidateVerification("C1", "insufficient", 0.99, "generic_similarity")],
+        model_text_matches=bridge,
+    )
+    assert conflicted.outcome == "ambiguous"
+    assert insufficient.outcome != "verified"
+
+
+def test_candidate_evidence_requires_confident_nonempty_identity_evidence() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1",
+                "match",
+                0.79,
+                "exact_visible_text",
+                "low",
+                resolved_identity="J7EF",
+            ),
+            CandidateVerification(
+                "C2", "match", 0.9, "exact_visible_text", "", resolved_identity="J10A"
+            ),
+            CandidateVerification(
+                "C3",
+                "match",
+                0.9,
+                "generic_similarity",
+                "generic",
+                resolved_identity="J11A",
+            ),
+        ]
+    )
+    assert result.candidate_evidence == ()
+
+
+def test_page_identity_rejects_non_integral_page_numbers() -> None:
+    assert page_identity(document(page="3")) == ("manual.pdf", 3)
+    assert page_identity(document(page=True)) is None
+    assert page_identity(document(page=3.5)) is None
+
+
 def test_product_line_alias_matches_punctuation_and_boundaries() -> None:
     understanding = QueryUnderstanding(ocr_text="JREALITY JORJIN")
     assert canonicalize_product_line("J-Reality") == "jreality"
@@ -267,20 +447,26 @@ def test_product_line_alias_matches_punctuation_and_boundaries() -> None:
         {"jreality": "J7EF PULS 產品規格_v3.pdf"},
     )
     assert matches["C1"].tier == "product_line"
-    assert derive_product_line_matches(
-        QueryUnderstanding(ocr_text="JREALITYX"),
-        [document(source="J7EF PULS 產品規格_v3.pdf", content="J7EF Plus")],
-        {"jreality"},
-        {"jreality": "J7EF PULS 產品規格_v3.pdf"},
-    ) == {}
+    assert (
+        derive_product_line_matches(
+            QueryUnderstanding(ocr_text="JREALITYX"),
+            [document(source="J7EF PULS 產品規格_v3.pdf", content="J7EF Plus")],
+            {"jreality"},
+            {"jreality": "J7EF PULS 產品規格_v3.pdf"},
+        )
+        == {}
+    )
 
 
 def test_product_line_alias_requires_registry_and_global_eligibility() -> None:
     assert "jreality" in PRODUCT_LINE_ALIASES
     understanding = QueryUnderstanding(ocr_text="JREALITY")
-    assert derive_product_line_matches(
-        understanding, [document(content="J-Reality")], set()
-    ) == {}
+    assert (
+        derive_product_line_matches(
+            understanding, [document(content="J-Reality")], set()
+        )
+        == {}
+    )
 
 
 def test_product_line_alias_matches_even_with_brand_observation() -> None:
@@ -291,11 +477,7 @@ def test_product_line_alias_matches_even_with_brand_observation() -> None:
         {"jreality": "J7EF PULS 產品規格_v3.pdf"},
     )
     result = decide_multimodal_outcome(
-        [
-            CandidateVerification(
-                "C1", "mismatch", 0.99, "generic_similarity"
-            )
-        ],
+        [CandidateVerification("C1", "mismatch", 0.99, "generic_similarity")],
         product_line_matches=matches,
     )
     assert result.outcome == "verified"

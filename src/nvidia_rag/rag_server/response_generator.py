@@ -27,6 +27,7 @@
 
 import asyncio
 import base64
+import inspect
 import json
 import logging
 import os
@@ -85,6 +86,35 @@ class RAGResponse:
     def __init__(self, generator, status_code: int = 200):
         self.generator = generator
         self.status_code = status_code
+
+
+class _OwnedAsyncStream:
+    """Async stream whose owner can close the source before iteration starts."""
+
+    def __init__(self, stream, close_callback=None) -> None:
+        self._stream = stream
+        self._close_callback = close_callback
+        self._closed = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return await self._stream.__anext__()
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        close_stream = getattr(self._stream, "aclose", None)
+        if callable(close_stream):
+            result = close_stream()
+            if inspect.isawaitable(result):
+                await result
+        if callable(self._close_callback):
+            result = self._close_callback()
+            if inspect.isawaitable(result):
+                await result
 
 
 SUMMARY_POLL_INTERVAL_SECONDS = 2
@@ -680,7 +710,7 @@ def generate_answer(
         yield from error_response_generator(FALLBACK_EXCEPTION_MSG)
 
 
-async def generate_answer_async(
+async def _generate_answer_async(
     generator,
     contexts: list[Any],
     model: str = "",
@@ -693,6 +723,7 @@ async def generate_answer_async(
     otel_metrics_client: OtelMetrics | None = None,
     token_usage: dict | None = None,
     citations: Optional["Citations"] = None,
+    close_callback=None,
 ):
     """Generate and stream the response to the provided prompt asynchronously.
 
@@ -896,6 +927,50 @@ async def generate_answer_async(
         )
         async for msg in error_response_generator_async(FALLBACK_EXCEPTION_MSG):
             yield msg
+    finally:
+        close = getattr(generator, "aclose", None)
+        if callable(close):
+            try:
+                result = close()
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception as error:
+                logger.debug("Failed to close response source stream: %s", error)
+
+
+def generate_answer_async(
+    generator,
+    contexts: list[Any],
+    model: str = "",
+    collection_name: str = "",
+    enable_citations: bool = True,
+    use_nrl_citations: bool = False,
+    context_reranker_time_ms: float | None = None,
+    retrieval_time_ms: float | None = None,
+    rag_start_time_sec: float | None = None,
+    otel_metrics_client: OtelMetrics | None = None,
+    token_usage: dict | None = None,
+    citations: Optional["Citations"] = None,
+    close_callback=None,
+):
+    """Return an SSE stream with explicit ownership of its source resource."""
+    return _OwnedAsyncStream(
+        _generate_answer_async(
+            generator,
+            contexts,
+            model=model,
+            collection_name=collection_name,
+            enable_citations=enable_citations,
+            use_nrl_citations=use_nrl_citations,
+            context_reranker_time_ms=context_reranker_time_ms,
+            retrieval_time_ms=retrieval_time_ms,
+            rag_start_time_sec=rag_start_time_sec,
+            otel_metrics_client=otel_metrics_client,
+            token_usage=token_usage,
+            citations=citations,
+        ),
+        close_callback=close_callback,
+    )
 
 
 def prepare_citations(

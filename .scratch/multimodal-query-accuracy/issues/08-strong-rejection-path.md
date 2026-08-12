@@ -4,17 +4,17 @@
 
 **Blocked by:** None — can start immediately（與 05 的信心政策設計互補；本 ticket 專注於可執行的拒絕閘與 abstention 行為，且以 live evidence 為基準）
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 以現有 live evidence 建立 rejection 失敗基準：4 個 rejection case（`logo-weak-what`、`logo-pronoun-confirmation`、`consecutive-image-isolation-baseline`、`no-text-product-no-match`）目前全部未拒答，`unsupported_claim_rate = 0.75`。
-- [ ] 建立 rejection 失敗基準：4 個 rejection case 目前全部未拒答，`unsupported_claim_rate = 0.75`、`low_confidence_rejection_precision = 0.0`、`low_confidence_rejection_recall = 0.0`；此外 `j7ef-pronoun-confirmation` 也負向誤判（見 Comments）。
-- [ ] 以共享 Qwen endpoint 進行非 streaming 的候選視覺驗證階段：一次 batched call 比較本次圖片與 top 2 融合候選的頁面文字＋頁面圖片，輸出結構化 candidate-level 結果（decision: match|mismatch|insufficient、confidence、evidence_type、supporting_evidence、conflicts、resolved_identity）。
-- [ ] Deterministic 政策在 server code 重算 outcome：`verified`（至少一個候選 match、confidence ≥ 0.80、無 conflicts、evidence 為 visual_identity 或 exact_visible_text）才允許確定回答；`ambiguous`（證據不足／低信心／多候選衝突／輸出無法解析）與 `no_match`（無候選或全數高信心 mismatch）都必須 abstain。
-- [ ] `verified` 時只保留該候選的頁面 context 與 citations；不把其他不相關融合候選送入最終 generation（`docs_for_citations` 一併過濾）。
-- [ ] `ambiguous`/`no_match` 以 `generate_answer_async(..., contexts=[])` 送出規格化 abstention 文字，維持既有 streaming/SSE chunk schema，且 citations 為空。
-- [ ] 驗證閘失敗（malformed 輸出、verifier endpoint 不可用）→ abstain 或既有 service error，不得無聲退回 speculative generation。
-- [ ] prompt 層 abstention 指示：不以 retrieval rank、generic 視覺相似、category 或 logo 單獨推斷 identity；驗證未確立時明確說無法確認，不猜測品牌/型號/規格。`prompt.yaml:186-188` 現行規則與 abstention 衝突，需以條件式規則覆寫（僅在 feature 開啟時套用）。
-- [ ] RRF fusion score、Top-1/Top-2 margin、raw VDB score 都**不做**為門檻訊號（live 資料顯示 RRF 分數壓縮在 0.0154–0.0164，無法區分 match/no-match）；raw scores 僅留 telemetry/log。
+- [x] 以現有 live evidence 建立 rejection 失敗基準：4 個 rejection case（`logo-weak-what`、`logo-pronoun-confirmation`、`consecutive-image-isolation-baseline`、`no-text-product-no-match`）目前全部未拒答，`unsupported_claim_rate = 0.75`。
+- [x] 建立 rejection 失敗基準：4 個 rejection case 目前全部未拒答，`unsupported_claim_rate = 0.75`、`low_confidence_rejection_precision = 0.0`、`low_confidence_rejection_recall = 0.0`；此外 `j7ef-pronoun-confirmation` 也負向誤判（見 Comments）。
+- [x] 以共享 Qwen endpoint 進行非 streaming 的候選視覺驗證階段：一次 batched call 比較本次圖片與 top 2 融合候選的頁面文字＋頁面圖片，輸出結構化 candidate-level 結果（decision: match|mismatch|insufficient、confidence、evidence_type、supporting_evidence、conflicts、resolved_identity）。
+- [x] Deterministic 政策在 server code 重算 outcome：`verified`（至少一個候選 match、confidence ≥ 0.80、無 conflicts、evidence 為 visual_identity 或 exact_visible_text）才允許確定回答；`ambiguous`（證據不足／低信心／多候選衝突／輸出無法解析）與 `no_match`（無候選或全數高信心 mismatch）都必須 abstain。
+- [x] `verified` 時只保留該候選的頁面 context 與 citations；不把其他不相關融合候選送入最終 generation（`docs_for_citations` 一併過濾）。
+- [x] `ambiguous`/`no_match` 以 `generate_answer_async(..., contexts=[])` 送出規格化 abstention 文字，維持既有 streaming/SSE chunk schema，且 citations 為空。
+- [x] 驗證閘失敗（malformed 輸出、verifier endpoint 不可用）→ abstain 或既有 service error，不得無聲退回 speculative generation。
+- [x] prompt 層 abstention 指示：不以 retrieval rank、generic 視覺相似、category 或 logo 單獨推斷 identity；驗證未確立時明確說無法確認，不猜測品牌/型號/規格。`prompt.yaml:186-188` 現行規則與 abstention 衝突，需以條件式規則覆寫（僅在 feature 開啟時套用）。
+- [x] RRF fusion score、Top-1/Top-2 margin、raw VDB score 都**不做**為門檻訊號（live 資料顯示 RRF 分數壓縮在 0.0154–0.0164，無法區分 match/no-match）；raw scores 僅留 telemetry/log。
 - [x] 以相同 8-case dataset 做 A/B evaluation（gate-off baseline → gate-on），證明 rejection precision/recall 提升、citation leak rate = 0，且不破壞 identification cases（逐 case 判定，目前 verified identification accuracy = 0.5）。
 - [x] Feature flag 關閉時完全繞過驗證閘並保留 legacy path；開啟時維持既有 streaming response 與 citations 相容性。
 
