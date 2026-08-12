@@ -60,6 +60,7 @@ from nvidia_rag.rag_server.multimodal_accuracy import (
     MultimodalRetrievalResult,
     MultimodalVerificationDecision,
     QueryUnderstanding,
+    VerificationOutcome,
     build_enriched_text_query,
     canonicalize_product_line,
     decide_multimodal_outcome,
@@ -2431,13 +2432,36 @@ class NvidiaRAG:
                 f"Multimodal verification failed: {error}",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from error
-        return decide_multimodal_outcome(
+        for judgment in judgments or ():
+            logger.info(
+                "Verifier judgment %s: decision=%s confidence=%.2f evidence_type=%s "
+                "identity=%r evidence=%r conflicts=%s",
+                judgment.candidate_id,
+                judgment.decision,
+                judgment.confidence,
+                judgment.evidence_type,
+                judgment.resolved_identity,
+                judgment.supporting_evidence,
+                list(judgment.conflicts),
+            )
+        logger.info(
+            "Bridge matches: %s",
+            {key: value.matched_token for key, value in model_text_matches.items()},
+        )
+        decision = decide_multimodal_outcome(
             judgments,
             min_match_confidence=cfg.verification_min_match_confidence,
             min_no_match_confidence=cfg.verification_min_no_match_confidence,
             model_text_matches=model_text_matches,
             product_line_matches=product_line_matches,
         )
+        logger.info(
+            "Verification outcome=%s selected=%s reason=%s",
+            decision.outcome,
+            decision.selected_candidate,
+            decision.abstention_reason,
+        )
+        return decision
 
     def _product_line_alias_eligibility(
         self,
@@ -2512,7 +2536,7 @@ class NvidiaRAG:
         model: str,
         collection_name: str,
         reason: str,
-        outcome: str = "no_match",
+        outcome: VerificationOutcome = "no_match",
         candidate_evidence: tuple[str, ...] = (),
         metrics: OtelMetrics | None,
     ) -> RAGResponse:

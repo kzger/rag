@@ -29,13 +29,29 @@ DEFAULT_REJECTION_TERMS = (
     "沒有相關資料",
     "證據不足",
 )
-IDENTIFICATION_NEGATION_TERMS = (
-    "is not",
-    "isn't",
-    "not the",
-    "不是",
-    "並非",
-    "不屬於",
+# A correct identification often uses a bare negator in passing ("...也不是紅黑相間的耳機"),
+# so these must match a denial *of the identity*, not any negation anywhere in the answer.
+IDENTIFICATION_NEGATION_PATTERNS = (
+    re.compile(
+        r"(不是|並非|不屬於|並不是|不太可能是|應該不是|恐怕不是)"
+        r"[^。！？；\n]{0,15}?(同一|同款|這個產品|這款|該產品|同型號)"
+    ),
+    re.compile(
+        r"\b(is|are)\s+not\b[^.!?\n]{0,25}?\b(the same|this product|that product)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(isn't|aren't)\b[^.!?\n]{0,25}?\b(the same|this product|that product)\b",
+        re.IGNORECASE,
+    ),
+)
+# A negator immediately preceding the expected model name ("這不是 J7EF Plus") is also a
+# denial. Anchored to the end of the window so it must sit just before that mention.
+NEGATOR_BEFORE_TERM = re.compile(
+    r"(不是|並非|不屬於|並不是|不太可能是|應該不是|恐怕不是"
+    r"|\bis\s+not\b|\bare\s+not\b|\bisn't\b|\baren't\b|\bnot\b)"
+    r"[^。！？；.!?\n]{0,10}$",
+    re.IGNORECASE,
 )
 DATA_URI_PATTERN = re.compile(r"data:[^;,\s]+;base64,[A-Za-z0-9+/=_-]+")
 
@@ -310,6 +326,21 @@ def _contains_any(text: str, terms: list[str] | tuple[str, ...]) -> bool:
     return any(term.casefold() in lowered for term in terms)
 
 
+def _denies_identity(
+    text: str, accepted_terms: list[str] | tuple[str, ...] = ()
+) -> bool:
+    """Detect an answer that denies the identification, not any passing negation."""
+    if any(pattern.search(text) for pattern in IDENTIFICATION_NEGATION_PATTERNS):
+        return True
+    lowered = text.casefold()
+    for term in accepted_terms:
+        for match in re.finditer(re.escape(term.casefold()), lowered):
+            preceding = lowered[max(0, match.start() - 30) : match.start()]
+            if NEGATOR_BEFORE_TERM.search(preceding):
+                return True
+    return False
+
+
 def _candidate_hit(observation: CaseObservation) -> bool:
     return any(
         expected.casefold() == candidate.casefold()
@@ -357,7 +388,7 @@ def compute_metrics(observations: list[CaseObservation]) -> dict[str, Any]:
         and _generation_citation_hit(item)
         and _contains_any(item.answer, item.accepted_answer_terms)
         and not _contains_any(item.answer, item.forbidden_answer_terms)
-        and not _contains_any(item.answer, IDENTIFICATION_NEGATION_TERMS)
+        and not _denies_identity(item.answer, item.accepted_answer_terms)
         for item in identification_cases
     }
     identification_hits = sum(identification_results.values())
@@ -470,10 +501,13 @@ def build_report(
             ),
             "verified_identification_accuracy": (
                 "Fraction of identifiable cases whose answer contains an annotated "
-                "accepted identity, contains no annotated forbidden or negation term, "
-                "and whose /v1/search candidates and /v1/generate citations both "
-                "contain the expected source. This lexical value is a diagnostic; "
-                "the adjudicated report replaces it with manual verdicts."
+                "accepted identity, contains no annotated forbidden term, does not "
+                "deny the identity, and whose /v1/search candidates and /v1/generate "
+                "citations both contain an expected source. Denial is matched as a "
+                "phrase (a negator bound to 'the same product' or to an accepted "
+                "model term), not as a bare substring, so a negation used in passing "
+                "in an otherwise correct answer does not count. This lexical value is "
+                "a diagnostic; the adjudicated report replaces it with manual verdicts."
             ),
             "unsupported_claim_rate": (
                 "Case-level lexical diagnostic: fraction of outputs that fail an "

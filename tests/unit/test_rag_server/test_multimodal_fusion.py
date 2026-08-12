@@ -385,13 +385,32 @@ def test_bridge_does_not_override_specific_conflicting_identity() -> None:
 
 
 def test_bridge_does_not_override_conflicts_or_insufficient_verdict() -> None:
+    """Only a conflict naming a different model may veto the bridge."""
     bridge = derive_query_model_matches(
         QueryUnderstanding(model="J7EF"), [document(source="J7EF Sales kit.pdf")]
     )
-    conflicted = decide_multimodal_outcome(
+    names_other_model = decide_multimodal_outcome(
         [
             CandidateVerification(
-                "C1", "mismatch", 0.99, "generic_similarity", conflicts=["other"]
+                "C1",
+                "mismatch",
+                0.99,
+                "generic_similarity",
+                conflicts=["Query image model: J10A"],
+            )
+        ],
+        model_text_matches=bridge,
+    )
+    # The verifier describing a layout/appearance difference is the photo-vs-spec
+    # noise the bridge exists to see through, so it must not veto the match.
+    layout_only_conflict = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1",
+                "mismatch",
+                0.99,
+                "generic_similarity",
+                conflicts=["Colour and layout differ from the candidate page"],
             )
         ],
         model_text_matches=bridge,
@@ -400,8 +419,25 @@ def test_bridge_does_not_override_conflicts_or_insufficient_verdict() -> None:
         [CandidateVerification("C1", "insufficient", 0.99, "generic_similarity")],
         model_text_matches=bridge,
     )
-    assert conflicted.outcome == "ambiguous"
+    assert names_other_model.outcome == "ambiguous"
+    assert layout_only_conflict.outcome == "verified"
     assert insufficient.outcome != "verified"
+
+
+def test_bridge_verifies_whether_or_not_the_verifier_agrees() -> None:
+    """An agreeing verifier must not be treated as weaker than an overridden one."""
+    bridge = derive_query_model_matches(
+        QueryUnderstanding(model="J7EF"), [document(source="J7EF Sales kit.pdf")]
+    )
+    outcomes = {
+        decision: decide_multimodal_outcome(
+            [CandidateVerification("C1", decision, 0.99, "generic_similarity")],
+            model_text_matches=bridge,
+        ).outcome
+        for decision in ("match", "mismatch")
+    }
+
+    assert outcomes == {"match": "verified", "mismatch": "verified"}
 
 
 def test_candidate_evidence_requires_confident_nonempty_identity_evidence() -> None:

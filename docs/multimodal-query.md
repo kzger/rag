@@ -435,9 +435,65 @@ For a step-by-step guide with code examples covering collection creation, docume
   never image URIs or base64 payloads. With the flag disabled, the legacy
   conversation behavior remains unchanged.
 
-This staged pipeline broadens candidates and isolates current-turn evidence;
-later fusion and verification must still decide which candidates support an
+This staged pipeline broadens candidates and isolates current-turn evidence. The
+verification gate below then decides which of those candidates may support an
 answer.
+
+## Candidate Verification and Abstention
+
+`ENABLE_MULTIMODAL_VERIFICATION_GATE=true` adds a non-streaming verification step
+between retrieval and generation. It sends the query image and the top
+`MULTIMODAL_VERIFICATION_MAX_CANDIDATES` fused candidate pages (page text plus one
+page image each, within the `APP_VLM_MAX_TOTAL_IMAGES` budget) to the shared VLM
+endpoint in one `temperature=0` call, and re-derives the outcome deterministically
+in server code. Retrieval and fusion scores are never used as a threshold — RRF
+values are too compressed to separate a match from a no-match — so they stay
+telemetry only.
+
+The outcome is one of three:
+
+- **`verified`** — answers using only the selected candidate's page, with citations
+  filtered to that page.
+- **`ambiguous`** — abstains, listing only candidates backed by concrete identity
+  evidence together with their conflicts.
+- **`no_match`** — abstains, stating the knowledge base cannot confirm the item. It
+  never silently falls back to direct VLM guessing.
+
+Both abstention outcomes stream a standardized message through the normal SSE
+schema with zero citations. A malformed verifier response or an unavailable
+endpoint abstains or raises the existing service error; it never degrades into a
+speculative answer.
+
+### Model-token bridge
+
+A product photo and a specification page differ in layout, so the VLM frequently
+reports a visual `mismatch` even for the correct page. To recover these, a
+deterministic bridge extracts strong model tokens (letter-and-digit, four or more
+alphanumeric characters, whole-token) from the query image's OCR and model fields
+and matches them against candidate page text or source filename. A bridge match is
+positive identity evidence and can override that layout mismatch.
+
+The bridge is deliberately narrow, and only these signals veto it:
+
+- A candidate with concrete identity evidence naming a *different* model token.
+- Conflicts **on the bridged candidate itself** that name a model token outside the
+  bridge match. Conflicts raised by other candidates explaining why they do not
+  match, and colour/shape/layout differences, are the expected photo-versus-spec
+  noise and are ignored.
+- A verifier verdict of `insufficient`, which asserts nothing to corroborate.
+
+Brand or logo text cannot drive the bridge: brand names carry no digit and so never
+form a strong model token, which is what keeps decorative-logo and unrelated-product
+images on the abstention path.
+
+`ENABLE_MULTIMODAL_ABSTENTION_PROMPT=true` additionally overrides the default
+identification prompt rules so the model does not infer identity from retrieval
+rank, generic visual similarity, category, or logo alone.
+
+All of these flags default to `false`, including when `ENABLE_MULTIMODAL_ACCURACY`
+is enabled, so the legacy pipeline remains the fallback. Verification decisions are
+logged as `Verifier judgment`, `Bridge matches`, and `Verification outcome` lines
+carrying structured fields only — never image URIs or base64 payloads.
 
 
 ## Related Topics

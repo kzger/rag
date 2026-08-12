@@ -1390,13 +1390,6 @@ class MultimodalAccuracyConfig(_ConfigBase):
             raise ValueError("must be greater than zero")
         return value
 
-    @field_validator("visual_weight", "text_weight", mode="after")
-    @classmethod
-    def validate_weight(cls, value: float) -> float:
-        if not 0.0 <= value <= 1.0:
-            raise ValueError("must be between 0.0 and 1.0")
-        return value
-
     @field_validator("query_understanding_temperature", mode="after")
     @classmethod
     def validate_temperature(cls, value: float) -> float:
@@ -1404,19 +1397,16 @@ class MultimodalAccuracyConfig(_ConfigBase):
             raise ValueError("must be between 0.0 and 2.0")
         return value
 
-    @field_validator("verification_temperature", mode="after")
-    @classmethod
-    def validate_verification_temperature(cls, value: float) -> float:
-        if not 0.0 <= value <= 1.0:
-            raise ValueError("must be between 0.0 and 1.0")
-        return value
-
     @field_validator(
-        "verification_min_match_confidence", "verification_min_no_match_confidence",
+        "visual_weight",
+        "text_weight",
+        "verification_temperature",
+        "verification_min_match_confidence",
+        "verification_min_no_match_confidence",
         mode="after",
     )
     @classmethod
-    def validate_verification_confidence(cls, value: float) -> float:
+    def validate_unit_interval(cls, value: float) -> float:
         if not 0.0 <= value <= 1.0:
             raise ValueError("must be between 0.0 and 1.0")
         return value

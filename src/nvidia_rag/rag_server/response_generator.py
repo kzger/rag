@@ -32,7 +32,13 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Generator,
+)
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
@@ -88,18 +94,30 @@ class RAGResponse:
         self.status_code = status_code
 
 
-class _OwnedAsyncStream:
-    """Async stream whose owner can close the source before iteration starts."""
+CloseCallback = Callable[[], Awaitable[None] | None]
 
-    def __init__(self, stream, close_callback=None) -> None:
+
+class _OwnedAsyncStream:
+    """Async stream whose owner can close the source before iteration starts.
+
+    ``aclose`` must reach the source even when this stream was never iterated:
+    an un-started async generator discards its ``finally`` block on close, so
+    the callback is the only path that releases an already-opened upstream.
+    """
+
+    def __init__(
+        self,
+        stream: AsyncIterator[str],
+        close_callback: CloseCallback | None = None,
+    ) -> None:
         self._stream = stream
         self._close_callback = close_callback
         self._closed = False
 
-    def __aiter__(self):
+    def __aiter__(self) -> "_OwnedAsyncStream":
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> str:
         return await self._stream.__anext__()
 
     async def aclose(self) -> None:
@@ -723,7 +741,6 @@ async def _generate_answer_async(
     otel_metrics_client: OtelMetrics | None = None,
     token_usage: dict | None = None,
     citations: Optional["Citations"] = None,
-    close_callback=None,
 ):
     """Generate and stream the response to the provided prompt asynchronously.
 
@@ -951,8 +968,8 @@ def generate_answer_async(
     otel_metrics_client: OtelMetrics | None = None,
     token_usage: dict | None = None,
     citations: Optional["Citations"] = None,
-    close_callback=None,
-):
+    close_callback: CloseCallback | None = None,
+) -> _OwnedAsyncStream:
     """Return an SSE stream with explicit ownership of its source resource."""
     return _OwnedAsyncStream(
         _generate_answer_async(

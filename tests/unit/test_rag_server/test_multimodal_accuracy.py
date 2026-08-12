@@ -8,11 +8,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.documents import Document
+from nvidia_rag.rag_server import main
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.multimodal_accuracy import (
     CandidateVerification,
     QueryUnderstanding,
 )
+from nvidia_rag.rag_server.response_generator import generate_answer_async
 
 
 class DummyPrompt:
@@ -121,7 +123,6 @@ def stub_chat_prompt(
     monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> None:
     monkeypatch.setenv("ENABLE_REFLECTION", "false")
-    import nvidia_rag.rag_server.main as main
 
     class DummyChatPromptTemplate:
         @staticmethod
@@ -206,9 +207,6 @@ async def test_direct_multimodal_no_kb_disclosure_is_feature_gated(
 ) -> None:
     rag = NvidiaRAG()
     original_chunks = ["legacy direct answer"]
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
-
     monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
 
     async def stream(**kwargs: object) -> AsyncIterator[str]:
@@ -254,9 +252,6 @@ async def test_direct_disclosure_closes_underlying_stream_on_early_close(
 
     tracked = TrackedStream()
 
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
-
     with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
         vlm_class.return_value.stream_with_messages = lambda **kwargs: tracked
         response = await generate_direct_multimodal(rag, accuracy_enabled=True)
@@ -283,9 +278,6 @@ async def test_public_generate_gate_off_keeps_legacy_final_vlm_and_citations(
         nonlocal final_called
         final_called = True
         yield "legacy final answer"
-
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
 
     monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
     with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
@@ -588,9 +580,6 @@ async def test_public_generate_verified_keeps_selected_context_and_citation(
     rag = NvidiaRAG()
     rag.config.multimodal_accuracy.enable_verification_gate = True
     configure_vdb(monkeypatch, vdb)
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
-
     monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
     stream_kwargs: dict[str, object] = {}
 
@@ -659,9 +648,6 @@ async def test_public_generate_ambiguous_lists_identity_evidence_without_final_v
     rag = NvidiaRAG()
     rag.config.multimodal_accuracy.enable_verification_gate = True
     configure_vdb(monkeypatch, vdb)
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
-
     monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
     final_stream_called = False
 
@@ -750,9 +736,6 @@ async def test_public_generate_abstains_without_final_vlm(
     rag = NvidiaRAG()
     rag.config.multimodal_accuracy.enable_verification_gate = True
     configure_vdb(monkeypatch, vdb)
-    import nvidia_rag.rag_server.main as main
-    from nvidia_rag.rag_server.response_generator import generate_answer_async
-
     monkeypatch.setattr(main, "generate_answer_async", generate_answer_async)
     final_stream_called = False
 

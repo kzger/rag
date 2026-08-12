@@ -18,6 +18,7 @@ VerificationEvidenceType = Literal[
     "visual_identity", "exact_visible_text", "generic_similarity", "none"
 ]
 
+_CONCRETE_IDENTITY_EVIDENCE = {"visual_identity", "exact_visible_text"}
 _KNOWN_BRAND_IDENTITIES = {"jorjin", "jordin"}
 _BRAND_ONLY_TERMS = _KNOWN_BRAND_IDENTITIES | {"brand", "logo", "mark"}
 # Product-line aliases are global identity claims. Add entries deliberately and
@@ -357,7 +358,7 @@ def decide_multimodal_outcome(
         if item.decision == "match"
         and item.confidence >= min_match_confidence
         and not item.conflicts
-        and item.evidence_type in {"visual_identity", "exact_visible_text"}
+        and item.evidence_type in _CONCRETE_IDENTITY_EVIDENCE
         and item.resolved_identity.strip()
         and item.supporting_evidence.strip()
         and not _is_brand_only_identity(item)
@@ -373,33 +374,38 @@ def decide_multimodal_outcome(
     concrete_verifier_items = [
         item
         for item in candidates
-        if item.evidence_type in {"visual_identity", "exact_visible_text"}
+        if item.evidence_type in _CONCRETE_IDENTITY_EVIDENCE
         and item.resolved_identity.strip()
         and not _is_brand_only_identity(item)
     ]
-    concrete_identity_conflict = any(
-        (
-            item.decision == "mismatch"
-            or (
-                set(
-                    _strong_model_tokens(
-                        f"{item.resolved_identity} {item.supporting_evidence}"
-                    )
-                )
-                and set(
-                    _strong_model_tokens(
-                        f"{item.resolved_identity} {item.supporting_evidence}"
-                    )
-                ).isdisjoint(bridge_tokens)
-            )
+
+    def _contradicts_bridge(item: CandidateVerification) -> bool:
+        # Only a positively asserted *different* model token counts as a conflict.
+        # A bare "mismatch" is the photo-vs-spec layout disagreement the bridge
+        # exists to override, so treating it as a conflict disables the bridge.
+        item_tokens = set(
+            _strong_model_tokens(f"{item.resolved_identity} {item.supporting_evidence}")
         )
-        for item in concrete_verifier_items
+        return bool(item_tokens and item_tokens.isdisjoint(bridge_tokens))
+
+    concrete_identity_conflict = any(
+        _contradicts_bridge(item) for item in concrete_verifier_items
+    )
+    # Only the bridged candidate's own conflicts can invalidate the bridge, and only
+    # when they name a different model. A non-bridged candidate explaining why it does
+    # not match, or colour/shape/layout differences on the bridged one, are the
+    # expected photo-vs-spec noise the bridge exists to see through.
+    bridge_candidate_ids = {match.candidate_id for match in bridge_matches}
+    bridge_conflict_names_other_model = any(
+        set(_strong_model_tokens(" ".join(item.conflicts))) - bridge_tokens
+        for item in candidates
+        if item.candidate_id in bridge_candidate_ids
     )
     if bridge_matches and (
         len(bridge_tokens) > 1
         or len(bridge_families) > 1
         or concrete_identity_conflict
-        or any(item.conflicts for item in candidates)
+        or bridge_conflict_names_other_model
     ):
         return MultimodalVerificationDecision(
             "ambiguous",
@@ -413,9 +419,14 @@ def decide_multimodal_outcome(
             (
                 item
                 for item in candidates
-                if item.candidate_id in {match.candidate_id for match in bridge_matches}
-                and item.decision == "mismatch"
-                and item.evidence_type == "generic_similarity"
+                if item.candidate_id in bridge_candidate_ids
+                # A verifier that agrees carries strictly more evidence than one
+                # overridden for photo-vs-spec layout mismatch, so both qualify.
+                # "insufficient" stays out: it asserts nothing to corroborate.
+                # Evidence type is deliberately unrestricted -- the verifier reports
+                # visual_identity for these layout disagreements, and any genuinely
+                # contradictory identity is already caught by the guard above.
+                and item.decision in {"match", "mismatch"}
             ),
             None,
         )
@@ -466,7 +477,7 @@ def decide_multimodal_outcome(
         )
     if all(
         item.confidence >= min_no_match_confidence
-        and item.evidence_type not in {"visual_identity", "exact_visible_text"}
+        and item.evidence_type not in _CONCRETE_IDENTITY_EVIDENCE
         for item in candidates
     ):
         return MultimodalVerificationDecision(
@@ -492,7 +503,7 @@ def _candidate_evidence_details(
         if (
             candidate.decision != "match"
             or candidate.confidence < min_confidence
-            or candidate.evidence_type not in {"visual_identity", "exact_visible_text"}
+            or candidate.evidence_type not in _CONCRETE_IDENTITY_EVIDENCE
             or not candidate.resolved_identity.strip()
             or not candidate.supporting_evidence.strip()
             or _is_brand_only_identity(candidate)

@@ -210,6 +210,27 @@ exact deterministic scoring rules. Images are encoded only in live requests;
 reports contain paths and hashes, and any data URI echoed by a service is
 redacted.
 
+### Annotating cases
+
+Three conventions keep the lexical scoring honest; each exists because violating
+it produced a false failure against a correct answer:
+
+- **`accepted_answer_terms` must include the spelling the corpus uses.** The J7EF
+  specification PDF is titled `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3`, so an
+  answer echoing the document's own `J7EF Puls` is correct and is annotated as
+  accepted alongside `J7EF Plus`.
+- **`forbidden_answer_terms` are for wrong-product claims, not negation.** Use them
+  for competing model names (`J10A` in a J7EF case). Do not add bare negators such
+  as `不是` — they match innocuous prose inside correct answers. Identity denial is
+  detected separately by `_denies_identity`, which requires a negator bound to
+  `同一`/`the same product` or sitting immediately before an accepted model term,
+  so 「這不是 J7EF Plus」and 「這不太可能是同一個產品」still score as denials.
+- **`expected_sources` must be pages that actually identify the product**, and may
+  list several. Cover pages and bare brandmarks do not qualify: `J10A Sales kit.pdf`
+  page 9 is a logo on an orange background carrying no identifying content, so the
+  J10A case expects pages 1 (text `J10ASales Kit`) and 2 (product image and spec
+  table) instead.
+
 Lexical scoring in the live report is diagnostic only. To publish verified
 identification, unsupported-claim, and rejection metrics, review each exact
 answer against its query image and cited page, map every material factual claim
