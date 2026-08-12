@@ -1290,6 +1290,84 @@ class ReflectionConfig(_ConfigBase):
         return v
 
 
+class MultimodalAccuracyConfig(_ConfigBase):
+    """Configuration for the staged multimodal accuracy pipeline (ticket 04)."""
+
+    enable_query_understanding: bool = Field(
+        default=True,
+        env="ENABLE_QUERY_UNDERSTANDING",
+        description="Enable structured visual feature extraction for retrieval",
+    )
+    visual_candidates: int = Field(
+        default=5,
+        env="MULTIMODAL_VISUAL_CANDIDATES",
+        description="Number of visual retrieval candidates",
+    )
+    text_candidates: int = Field(
+        default=5,
+        env="MULTIMODAL_TEXT_CANDIDATES",
+        description="Number of text retrieval candidates",
+    )
+    max_candidates: int = Field(
+        default=5,
+        env="MULTIMODAL_MAX_CANDIDATES",
+        description="Maximum number of fused candidates",
+    )
+    visual_weight: float = Field(
+        default=0.5,
+        env="MULTIMODAL_VISUAL_WEIGHT",
+        description="Weight for visual reciprocal-rank fusion",
+    )
+    text_weight: float = Field(
+        default=0.5,
+        env="MULTIMODAL_TEXT_WEIGHT",
+        description="Weight for text reciprocal-rank fusion",
+    )
+    rrf_k: int = Field(
+        default=60,
+        env="MULTIMODAL_RRF_K",
+        description="Reciprocal-rank fusion smoothing constant",
+    )
+    query_understanding_max_tokens: int = Field(
+        default=512,
+        env="MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS",
+        description="Maximum tokens for query understanding",
+    )
+    query_understanding_temperature: float = Field(
+        default=0.0,
+        env="MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE",
+        description="Sampling temperature for query understanding",
+    )
+
+    @field_validator(
+        "visual_candidates",
+        "text_candidates",
+        "max_candidates",
+        "rrf_k",
+        "query_understanding_max_tokens",
+        mode="after",
+    )
+    @classmethod
+    def validate_positive_int(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("must be greater than zero")
+        return value
+
+    @field_validator("visual_weight", "text_weight", mode="after")
+    @classmethod
+    def validate_weight(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("must be between 0.0 and 1.0")
+        return value
+
+    @field_validator("query_understanding_temperature", mode="after")
+    @classmethod
+    def validate_temperature(cls, value: float) -> float:
+        if not 0.0 <= value <= 2.0:
+            raise ValueError("must be between 0.0 and 2.0")
+        return value
+
+
 # Agentic RAG config classes live in a dedicated module to avoid bloating
 # this file.  Import must happen after _ConfigBase and Field are defined above
 # (Python partial-module resolution handles the deliberate circular reference).
@@ -1331,6 +1409,9 @@ class NvidiaRAGConfig(_ConfigBase):
         default_factory=QueryDecompositionConfig
     )
     reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+    multimodal_accuracy: MultimodalAccuracyConfig = PydanticField(
+        default_factory=MultimodalAccuracyConfig
+    )
     agentic_rag: AgenticRAGConfig = PydanticField(default_factory=AgenticRAGConfig)
 
     # Top-level flags

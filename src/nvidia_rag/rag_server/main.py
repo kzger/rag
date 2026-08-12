@@ -55,6 +55,12 @@ from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
 from nvidia_rag.rag_server.health import check_all_services_health
+from nvidia_rag.rag_server.multimodal_accuracy import (
+    QueryUnderstanding,
+    build_enriched_text_query,
+    dedupe_by_page,
+    fuse_visual_text_candidates,
+)
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
@@ -1109,9 +1115,9 @@ class NvidiaRAG:
                     ]
                     for future in futures:
                         collection_name, processed_filter_expr = future.result()
-                        collection_filter_mapping[collection_name] = (
-                            processed_filter_expr
-                        )
+                        collection_filter_mapping[
+                            collection_name
+                        ] = processed_filter_expr
 
             docs = []
             local_ranker = None
@@ -1399,9 +1405,9 @@ class NvidiaRAG:
 
                             for future in futures:
                                 collection_name, processed_filter_expr = future.result()
-                                collection_filter_mapping[collection_name] = (
-                                    processed_filter_expr
-                                )
+                                collection_filter_mapping[
+                                    collection_name
+                                ] = processed_filter_expr
 
                         generated_count = len(
                             [f for f in collection_filter_mapping.values() if f]
@@ -2757,9 +2763,9 @@ class NvidiaRAG:
                     ]
                     for future in futures:
                         collection_name, processed_filter_expr = future.result()
-                        collection_filter_mapping[collection_name] = (
-                            processed_filter_expr
-                        )
+                        collection_filter_mapping[
+                            collection_name
+                        ] = processed_filter_expr
 
             # LLM and ranker creation - let the existing exception handler at the bottom catch runtime errors
             llm = get_llm(config=self.config, **llm_settings)
@@ -3126,9 +3132,9 @@ class NvidiaRAG:
 
                             for future in futures:
                                 collection_name, processed_filter_expr = future.result()
-                                collection_filter_mapping[collection_name] = (
-                                    processed_filter_expr
-                                )
+                                collection_filter_mapping[
+                                    collection_name
+                                ] = processed_filter_expr
 
                             u = aggregate_llm_token_usage.get("Custom Metadata") or {}
                             set_span_llm_usage(
@@ -3467,7 +3473,7 @@ class NvidiaRAG:
                         logger.info(
                             "  - Top Document Scores (normalized): %s",
                             [
-                                f"{s:.4f}" if isinstance(s, (int, float)) else s
+                                f"{s:.4f}" if isinstance(s, int | float) else s
                                 for s in scores
                             ],
                         )
@@ -3510,21 +3516,35 @@ class NvidiaRAG:
 
                     retrieval_start_time = time.time()
                     if is_image_query:
-                        docs = vdb_op.retrieval_image_langchain(
-                            query=retriever_query,
-                            collection_name=validated_collections[0],
-                            vectorstore=vdb_op.get_langchain_vectorstore(
-                                validated_collections[0]
-                            ),
-                            top_k=top_k,
-                            reranker_top_k=reranker_top_k,
-                            diverse_pages=self.config.enable_multimodal_accuracy,
-                            # filter_expr=collection_filter_mapping.get(
-                            #     validated_collections[0], ""
-                            # ),
-                            # otel_ctx=otel_ctx,
-                        )
-                        context_to_show = docs
+                        if self.config.enable_multimodal_accuracy:
+                            context_to_show = (
+                                await self._dual_retrieval_for_image_query(
+                                    query=query,
+                                    retriever_query=retriever_query,
+                                    chat_history=chat_history,
+                                    collection_name=validated_collections[0],
+                                    vdb_op=vdb_op,
+                                    vdb_top_k=vdb_top_k,
+                                    reranker_top_k=reranker_top_k,
+                                    filter_expr=collection_filter_mapping.get(
+                                        validated_collections[0], ""
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                    vlm_settings=vlm_settings,
+                                )
+                            )
+                        else:
+                            docs = vdb_op.retrieval_image_langchain(
+                                query=retriever_query,
+                                collection_name=validated_collections[0],
+                                vectorstore=vdb_op.get_langchain_vectorstore(
+                                    validated_collections[0]
+                                ),
+                                top_k=top_k,
+                                reranker_top_k=reranker_top_k,
+                                diverse_pages=False,
+                            )
+                            context_to_show = docs
                     else:
                         try:
                             docs = vdb_op.retrieval_langchain(
@@ -4181,6 +4201,141 @@ class NvidiaRAG:
                     ),
                     status_code=ErrorCodeMapping.BAD_REQUEST,
                 )
+
+    async def _dual_retrieval_for_image_query(
+        self,
+        *,
+        query: str | list[dict[str, Any]],
+        retriever_query: str,
+        chat_history: list[dict[str, Any]],
+        collection_name: str,
+        vdb_op: VDBRag,
+        vdb_top_k: int,
+        reranker_top_k: int,
+        filter_expr: str,
+        otel_ctx: Any,
+        vlm_settings: dict[str, Any] | None,
+    ) -> list[Document]:
+        """Retrieve and fuse visual and text candidates for an image query."""
+        cfg = self.config.multimodal_accuracy
+        question_text = self._extract_text_from_content(query)
+        understanding: QueryUnderstanding | None = None
+        stage_timings: dict[str, float] = {}
+
+        if cfg.enable_query_understanding and vlm_settings:
+            vlm_model = vlm_settings.get("vlm_model") or self.config.vlm.model_name
+            vlm_endpoint = (
+                vlm_settings.get("vlm_endpoint") or self.config.vlm.server_url
+            )
+            query_understanding_start = time.time()
+            try:
+                vlm = VLM(
+                    vlm_model=vlm_model,
+                    vlm_endpoint=vlm_endpoint,
+                    config=self.config,
+                    prompts=self.prompts,
+                )
+                understanding = await vlm.understand_query_async(
+                    query_content=query,
+                    question_text=question_text,
+                    max_tokens=cfg.query_understanding_max_tokens,
+                    temperature=cfg.query_understanding_temperature,
+                )
+                stage_timings["query_understanding_ms"] = (
+                    time.time() - query_understanding_start
+                ) * 1000
+                if understanding is None:
+                    logger.warning(
+                        "Query understanding failed; falling back to raw multimodal query"
+                    )
+            except Exception:
+                logger.warning(
+                    "Query understanding failed; falling back to raw multimodal query",
+                    exc_info=True,
+                )
+                understanding = None
+                stage_timings["query_understanding_ms"] = -1.0
+
+        history_summary = next(
+            (
+                message["content"].strip()
+                for message in reversed(chat_history or [])
+                if message.get("role") == "assistant"
+                and isinstance(message.get("content"), str)
+                and message["content"].strip()
+            ),
+            None,
+        )
+        text_query = build_enriched_text_query(
+            understanding, question_text, history_summary
+        )
+        vectorstore = vdb_op.get_langchain_vectorstore(collection_name)
+        text_retrieval_started = threading.Event()
+
+        def _visual_retrieval() -> list[Document]:
+            text_retrieval_started.wait()
+            return vdb_op.retrieval_image_langchain(
+                query=retriever_query,
+                collection_name=collection_name,
+                vectorstore=vectorstore,
+                top_k=vdb_top_k,
+                reranker_top_k=cfg.visual_candidates,
+                diverse_pages=True,
+            )
+
+        def _text_retrieval() -> list[Document]:
+            try:
+                return vdb_op.retrieval_langchain(
+                    query=text_query,
+                    collection_name=collection_name,
+                    vectorstore=vectorstore,
+                    top_k=vdb_top_k,
+                    filter_expr=filter_expr,
+                    otel_ctx=otel_ctx,
+                )
+            finally:
+                text_retrieval_started.set()
+
+        dual_retrieval_start = time.time()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            text_future = executor.submit(_text_retrieval)
+            visual_future = executor.submit(_visual_retrieval)
+            try:
+                visual_docs = visual_future.result()
+                text_docs = text_future.result()
+            finally:
+                release_nvidia_client_response(
+                    getattr(vdb_op, "embedding_model", None)
+                    or getattr(vdb_op, "_embedding_model", None)
+                )
+        stage_timings["dual_retrieval_ms"] = (time.time() - dual_retrieval_start) * 1000
+
+        visual_docs = dedupe_by_page(visual_docs, limit=cfg.visual_candidates)
+        text_docs = dedupe_by_page(text_docs, limit=cfg.text_candidates)
+        fusion_start = time.time()
+        fused_docs = fuse_visual_text_candidates(
+            visual_documents=visual_docs,
+            text_documents=text_docs,
+            visual_weight=cfg.visual_weight,
+            text_weight=cfg.text_weight,
+            rrf_k=cfg.rrf_k,
+            max_candidates=cfg.max_candidates,
+        )
+        stage_timings["fusion_ms"] = (time.time() - fusion_start) * 1000
+        logger.info(
+            "Multimodal accuracy stages: query_understanding_ms=%.1f "
+            "dual_retrieval_ms=%.1f fusion_ms=%.1f visual_candidates=%d "
+            "text_candidates=%d fused_candidates=%d text_query_chars=%d",
+            stage_timings.get("query_understanding_ms", -1.0),
+            stage_timings.get("dual_retrieval_ms", -1.0),
+            stage_timings.get("fusion_ms", -1.0),
+            len(visual_docs),
+            len(text_docs),
+            len(fused_docs),
+            len(text_query),
+        )
+        self._log_retrieved_pages(fused_docs, "Fused multimodal page candidates")
+        return fused_docs
 
     def _print_conversation_history(
         self,

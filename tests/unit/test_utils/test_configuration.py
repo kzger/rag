@@ -24,8 +24,6 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from pydantic import SecretStr, ValidationError
-
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
     FilterExpressionGeneratorConfig,
@@ -45,6 +43,7 @@ from nvidia_rag.utils.configuration import (
     VectorStoreConfig,
     VLMConfig,
 )
+from pydantic import SecretStr, ValidationError
 
 
 class TestVectorStoreConfig:
@@ -469,6 +468,40 @@ class TestNvidiaRAGConfig:
         assert config.enable_vlm_inference is False
         assert config.enable_multimodal_accuracy is False
         assert config.temp_dir == "./tmp-data"
+
+        multimodal = config.multimodal_accuracy
+        assert multimodal.enable_query_understanding is True
+        assert multimodal.visual_candidates == 5
+        assert multimodal.text_candidates == 5
+        assert multimodal.max_candidates == 5
+        assert multimodal.visual_weight == 0.5
+        assert multimodal.text_weight == 0.5
+        assert multimodal.rrf_k == 60
+        assert multimodal.query_understanding_max_tokens == 512
+        assert multimodal.query_understanding_temperature == 0.0
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_multimodal_accuracy_environment_variables(self):
+        with patch.dict(
+            os.environ,
+            {
+                "MULTIMODAL_VISUAL_CANDIDATES": "3",
+                "MULTIMODAL_VISUAL_WEIGHT": "0.7",
+                "ENABLE_QUERY_UNDERSTANDING": "false",
+            },
+        ):
+            multimodal = NvidiaRAGConfig.from_dict({}).multimodal_accuracy
+
+        assert multimodal.visual_candidates == 3
+        assert multimodal.visual_weight == 0.7
+        assert multimodal.enable_query_understanding is False
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_multimodal_accuracy_validation(self):
+        with pytest.raises(ValidationError):
+            NvidiaRAGConfig.from_dict({"multimodal_accuracy": {"visual_candidates": 0}})
+        with pytest.raises(ValidationError):
+            NvidiaRAGConfig.from_dict({"multimodal_accuracy": {"visual_weight": 1.5}})
 
     @patch.dict(os.environ, {}, clear=True)
     def test_environment_variables_top_level(self):
@@ -939,9 +972,7 @@ class TestRetrieverConfigValidation:
         config = RetrieverConfig(vdb_top_k=400, top_k=10)
         assert config.vdb_top_k == 400
 
-    def test_validate_vdb_top_k_exceeds_max_warns_without_startup_failure(
-        self, caplog
-    ):
+    def test_validate_vdb_top_k_exceeds_max_warns_without_startup_failure(self, caplog):
         """Out-of-range env defaults should not prevent server startup."""
         config = RetrieverConfig(vdb_top_k=401)
 

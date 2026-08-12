@@ -35,6 +35,7 @@ import io
 import os
 import re
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 from logging import getLogger
 from typing import Any
 
@@ -42,6 +43,11 @@ from langchain_core.messages import AIMessageChunk
 from openai import AsyncOpenAI
 from PIL import Image as PILImage
 
+from nvidia_rag.rag_server.multimodal_accuracy import (
+    QueryUnderstanding,
+    build_query_understanding_prompt,
+    parse_query_understanding,
+)
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -662,6 +668,54 @@ class VLM:
         )
         content = response.choices[0].message.content if response.choices else ""
         return (content or "").strip()
+
+    async def understand_query_async(
+        self,
+        query_content: Any,
+        question_text: str = "",
+        *,
+        max_tokens: int = 512,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+    ) -> QueryUnderstanding | None:
+        """Extract structured visual features from a multimodal query."""
+        system_prompt = build_query_understanding_prompt()
+        normalized, _last_user_idx, _system_accum = self._normalize_messages(
+            [{"role": "user", "content": query_content}]
+        )
+        messages = [{"role": "system", "content": system_prompt}, *normalized]
+        client = self._create_async_client(
+            self.invoke_url, api_key=self.config.vlm.get_api_key()
+        )
+        content = await self.invoke_model_async(
+            client,
+            self.model_name,
+            messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+        )
+        understanding = parse_query_understanding(content)
+        if understanding is None:
+            logger.warning(
+                "Query understanding: could not parse structured response; "
+                "falling back to raw multimodal query"
+            )
+            return None
+        if not understanding.usable:
+            logger.warning(
+                "Query understanding: structured response lacked usable features; "
+                "falling back to raw multimodal query"
+            )
+            return None
+        understanding = replace(understanding, raw_text=(question_text or ""))
+        logger.info(
+            "Query understanding extracted: model=%r ocr_text=%r object_category=%r",
+            understanding.model,
+            understanding.ocr_text,
+            understanding.object_category,
+        )
+        return understanding
 
     @staticmethod
     def _convert_image_url_to_png_b64(image_url: str) -> str:
