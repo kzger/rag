@@ -124,6 +124,26 @@ services:
       ENABLE_MULTIMODAL_VERIFICATION_GATE: ${ENABLE_MULTIMODAL_VERIFICATION_GATE:-False}
       # Strengthen image-identity abstention instructions when verification is enabled
       ENABLE_MULTIMODAL_ABSTENTION_PROMPT: ${ENABLE_MULTIMODAL_ABSTENTION_PROMPT:-False}
+      # Multimodal accuracy tunables. Defaults mirror src/nvidia_rag/utils/configuration.py
+      # so forwarding them changes nothing until they are set explicitly.
+      # Extract OCR/brand/model features from the query image to build the text query
+      ENABLE_QUERY_UNDERSTANDING: ${ENABLE_QUERY_UNDERSTANDING:-True}
+      MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS: ${MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS:-512}
+      MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE: ${MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE:-0.0}
+      # Candidates taken from each retrieval path, and kept after fusion
+      MULTIMODAL_VISUAL_CANDIDATES: ${MULTIMODAL_VISUAL_CANDIDATES:-5}
+      MULTIMODAL_TEXT_CANDIDATES: ${MULTIMODAL_TEXT_CANDIDATES:-5}
+      MULTIMODAL_MAX_CANDIDATES: ${MULTIMODAL_MAX_CANDIDATES:-5}
+      # Weighted reciprocal-rank fusion. Weights are each 0.0-1.0; rrf_k smooths rank gaps
+      MULTIMODAL_VISUAL_WEIGHT: ${MULTIMODAL_VISUAL_WEIGHT:-0.5}
+      MULTIMODAL_TEXT_WEIGHT: ${MULTIMODAL_TEXT_WEIGHT:-0.5}
+      MULTIMODAL_RRF_K: ${MULTIMODAL_RRF_K:-60}
+      # Verification gate. Candidates plus the query image must fit APP_VLM_MAX_TOTAL_IMAGES
+      MULTIMODAL_VERIFICATION_MAX_CANDIDATES: ${MULTIMODAL_VERIFICATION_MAX_CANDIDATES:-2}
+      MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE: ${MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE:-0.8}
+      MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE: ${MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE:-0.8}
+      MULTIMODAL_VERIFICATION_MAX_TOKENS: ${MULTIMODAL_VERIFICATION_MAX_TOKENS:-512}
+      MULTIMODAL_VERIFICATION_TEMPERATURE: ${MULTIMODAL_VERIFICATION_TEMPERATURE:-0.0}
       # When true, allow falling back to LLM flow if no images are present in query/messages/context
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
       VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-False}

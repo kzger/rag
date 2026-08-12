@@ -60,3 +60,57 @@
   Kubernetes is not a current deployment target, so no further Helm work is planned; any new tunable
   added to compose will need the same entry in `deploy/helm/nvidia-blueprint-rag/values.yaml` to keep
   that test green.
+
+## Calibration evidence — verification stage (2026-08-12)
+
+Tunables were forwarded through `docker-compose-rag-server.yaml` (and the matching
+`values.yaml` keys) so they could finally be varied; defaults were set to the
+`configuration.py` values, and a control run confirmed forwarding alone changed nothing.
+A `Multimodal verification stage: verification_ms=…` log line was added because the gate
+had no timing at all — logged stages accounted for only ~2.1 s of a ~7 s TTFT.
+
+Stage breakdown at the shipped configuration (medians, 9 cases):
+
+| stage | median |
+| --- | --- |
+| query understanding | 1.64 s |
+| dual retrieval | 0.45 s |
+| fusion | 0.001 s |
+| **candidate verification** | **4.40 s** |
+
+Grid over the two verification knobs, same dataset/collection/model:
+
+| config | verification median | TTFT p50 | identification | unsupported claim | rejection precision |
+| --- | --- | --- | --- | --- | --- |
+| **candidates=2, max_tokens=512 (shipped)** | 4.40 s | 7.27 / 6.75 s | **0.750** | **0.111** | **1.000** |
+| candidates=2, max_tokens=256 | 3.56 s | 5.89 s | 0.000 | 0.444 | 0.556 |
+| candidates=1, max_tokens=256 | 1.88 s | 3.62 s | 0.250 | 0.333 | 0.714 |
+| candidates=1, max_tokens=512 | 1.88 s | 4.16 s | 0.250 | 0.333 | 0.714 |
+
+**Both knobs are load-bearing; neither can be reduced.** Item 4 can therefore record
+`MULTIMODAL_VERIFICATION_MAX_CANDIDATES=2` and `MULTIMODAL_VERIFICATION_MAX_TOKENS=512`
+as evidence-backed rather than inherited:
+
+- Dropping to one candidate costs identification 0.750 -> 0.250 and rejection precision
+  1.000 -> 0.714 regardless of token budget (the 256 and 512 rows are identical), because
+  the gate only ever inspects the top-ranked page.
+- Dropping to 256 tokens with two candidates is worse still — identification collapses to
+  0.000, and rejection recall stays 1.0 only because it abstains on nearly everything while
+  precision falls to 0.556. **The mechanism was not established.** Each experiment recreated
+  the container, so that run's logs no longer existed when they were inspected. Truncated
+  JSON is the plausible cause — two candidates' `supporting_evidence` and `conflicts` free-text
+  fields ran 150-200 tokens in observed responses, and `parse_candidate_verification`
+  fails closed to `ambiguous` — but it is unverified. Thinking mode is off
+  (`APP_VLM_ENABLE_THINKING=false`), so "less room to reason" is *not* the explanation.
+  To confirm, re-run at 256 and grep the same container for `malformed verifier output`.
+- The shipped configuration reproduced across two independent runs (identification 0.750
+  both times), and TTFT p50 varied 6.75-7.27 s between identical runs, so treat ~0.5 s as
+  measurement noise.
+
+**Latency conclusion for item 6:** the verification stage cannot be made cheaper through
+these knobs without breaking the accuracy the gate exists to provide. Remaining options are
+architectural, not configuration: overlapping query understanding with visual retrieval
+(bounded by dual retrieval's 0.45 s, so ~0.45 s at best), caching image summaries across
+turns, or sending smaller page images. Whether ~7 s TTFT is acceptable is still the
+product decision this ticket flagged as unresolved — but it is now clear that the cost buys
+the rejection guarantee, and that cutting it cheaply is not available.

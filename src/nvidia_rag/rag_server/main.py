@@ -2415,6 +2415,7 @@ class NvidiaRAG:
             config=self.config,
             prompts=self.prompts,
         )
+        verification_start = time.time()
         try:
             judgments = await vlm.verify_candidates_async(
                 query_content=query,
@@ -2432,6 +2433,18 @@ class NvidiaRAG:
                 f"Multimodal verification failed: {error}",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from error
+        logger.info(
+            "Multimodal verification stage: verification_ms=%.1f candidates=%d "
+            "images_attached=%d max_tokens=%d",
+            (time.time() - verification_start) * 1000,
+            len(verification_candidates),
+            sum(
+                1
+                for doc in verification_candidates
+                if self._is_page_image_document(doc)
+            ),
+            cfg.verification_max_tokens,
+        )
         for judgment in judgments or ():
             logger.info(
                 "Verifier judgment %s: decision=%s confidence=%.2f evidence_type=%s "
