@@ -1,5 +1,16 @@
 {
   "version": "jorjin-glasses-weak-query-v1",
+  "coverage": {
+    "required": [
+      "weak-query",
+      "ocr-model",
+      "similar-products",
+      "consecutive-images",
+      "knowledge-base-no-match",
+      "no-text-product",
+      "deliberate-ambiguity"
+    ]
+  },
   "ambiguity": {
     "required": true,
     "present": true,

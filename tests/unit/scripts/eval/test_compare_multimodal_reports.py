@@ -8,10 +8,7 @@ from pathlib import Path
 import pytest
 
 MODULE_PATH = (
-    Path(__file__).parents[4]
-    / "scripts"
-    / "eval"
-    / "compare_multimodal_reports.py"
+    Path(__file__).parents[4] / "scripts" / "eval" / "compare_multimodal_reports.py"
 )
 SPEC = importlib.util.spec_from_file_location("compare_multimodal_reports", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
@@ -102,9 +99,7 @@ def test_compare_reports_fails_closed_for_identity_mismatch() -> None:
     with pytest.raises(ValueError, match="model differs"):
         comparison.compare_reports(
             _report(),
-            _report(
-                configuration={"model": "other-qwen", "collection": "products"}
-            ),
+            _report(configuration={"model": "other-qwen", "collection": "products"}),
         )
 
 
@@ -145,8 +140,14 @@ def test_compare_reports_lists_unmet_cases_and_missing_latency() -> None:
 
     result = comparison.compare_reports(_report(), candidate)
 
-    assert "baseline metric candidate_retrieval_hit_at_k is unavailable" in result["unmet_cases"]
-    assert "candidate metric candidate_retrieval_hit_at_k is unavailable" in result["unmet_cases"]
+    assert (
+        "baseline metric candidate_retrieval_hit_at_k is unavailable"
+        in result["unmet_cases"]
+    )
+    assert (
+        "candidate metric candidate_retrieval_hit_at_k is unavailable"
+        in result["unmet_cases"]
+    )
     assert "candidate latency_seconds.ttft.p50 is unavailable" in result["unmet_cases"]
     assert "candidate case one failed: timeout" in result["unmet_cases"]
 
@@ -198,12 +199,14 @@ def test_compare_reports_lists_both_missing_metric_sides() -> None:
 
     result = comparison.compare_reports(baseline, candidate)
 
-    assert "baseline metric verified_identification_accuracy is unavailable" in result[
-        "unmet_cases"
-    ]
-    assert "candidate metric verified_identification_accuracy is unavailable" in result[
-        "unmet_cases"
-    ]
+    assert (
+        "baseline metric verified_identification_accuracy is unavailable"
+        in result["unmet_cases"]
+    )
+    assert (
+        "candidate metric verified_identification_accuracy is unavailable"
+        in result["unmet_cases"]
+    )
     assert "baseline latency_seconds.ttft.p50 is unavailable" in result["unmet_cases"]
     assert "candidate latency_seconds.ttft.p50 is unavailable" in result["unmet_cases"]
 
@@ -274,9 +277,10 @@ def test_compare_reports_surfaces_blocked_manifest_ambiguity() -> None:
         ),
     )
 
-    assert "dataset ambiguity coverage is unmet: No suitable ground-truth asset." in result[
-        "unmet_cases"
-    ]
+    assert (
+        "dataset ambiguity coverage is unmet: No suitable ground-truth asset."
+        in result["unmet_cases"]
+    )
 
 
 def test_compare_reports_rejects_different_assets() -> None:
@@ -294,7 +298,9 @@ def test_compare_reports_rejects_different_assets() -> None:
         )
 
 
-def test_cli_writes_json_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_writes_json_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     baseline = tmp_path / "baseline.json"
     candidate = tmp_path / "candidate.json"
     output = tmp_path / "comparison.json"
@@ -333,3 +339,33 @@ def test_cli_writes_json_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert json.loads(output.read_text(encoding="utf-8"))["selection"]["selected"] == (
         "neither"
     )
+
+
+def test_quality_metrics_match_the_evaluator_output() -> None:
+    """QUALITY_METRICS duplicates the evaluator's metric names; catch any drift."""
+    evaluator_path = MODULE_PATH.with_name("evaluate_multimodal_accuracy.py")
+    spec = importlib.util.spec_from_file_location(
+        "evaluate_multimodal_accuracy", evaluator_path
+    )
+    assert spec is not None and spec.loader is not None
+    evaluator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(evaluator)
+
+    produced = evaluator.compute_metrics(
+        [
+            evaluator.CaseObservation(
+                case_id="only",
+                expected_sources=["manual.pdf#page=1"],
+                accepted_answer_terms=["J7EF Plus"],
+                expected_rejection=False,
+                answer="This is the J7EF Plus.",
+                candidate_sources=["manual.pdf#page=1"],
+                citations=["manual.pdf#page=1"],
+                ttft_seconds=0.1,
+                total_seconds=0.2,
+                search_seconds=0.05,
+            )
+        ]
+    )
+
+    assert set(comparison.QUALITY_METRICS) <= set(produced)

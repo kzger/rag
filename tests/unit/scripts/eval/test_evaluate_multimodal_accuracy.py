@@ -85,9 +85,12 @@ def test_build_generate_payload_records_request_vlm_temperature_without_schema_c
         request_vlm_temperature=0.0,
     )
 
-    assert multimodal_eval.build_generate_payload(dataset.cases[0], config)[
-        "vlm_temperature"
-    ] == 0.0
+    assert (
+        multimodal_eval.build_generate_payload(dataset.cases[0], config)[
+            "vlm_temperature"
+        ]
+        == 0.0
+    )
 
 
 def test_search_candidates_preserve_public_result_rank() -> None:
@@ -238,7 +241,9 @@ def test_ambiguous_rejection_terms_do_not_change_identification() -> None:
     assert metrics["verified_identification_accuracy"] == 1.0
 
 
-def test_rescore_report_preserves_identity_and_marks_harness_version(tmp_path: Path) -> None:
+def test_rescore_report_preserves_identity_and_marks_harness_version(
+    tmp_path: Path,
+) -> None:
     image = tmp_path / "query.png"
     image.write_bytes(b"fixture")
     dataset = multimodal_eval.load_dataset(_write_manifest(tmp_path))
@@ -325,7 +330,12 @@ def test_live_pronoun_answer_is_not_verified_identification() -> None:
         total_seconds=0.2,
     )
 
-    assert multimodal_eval.compute_metrics([observation])["verified_identification_accuracy"] == 0.0
+    assert (
+        multimodal_eval.compute_metrics([observation])[
+            "verified_identification_accuracy"
+        ]
+        == 0.0
+    )
 
 
 def test_report_contains_hashes_but_never_image_data(tmp_path: Path) -> None:
@@ -374,11 +384,12 @@ def test_report_distinguishes_request_and_server_configuration(tmp_path: Path) -
     report = multimodal_eval.build_report(dataset, [], config)
 
     assert report["configuration"]["request_fields"]["vlm_temperature"] == 0.0
-    assert report["configuration"]["server_deployment"]["settings"][
-        "APP_VLM_TEMPERATURE"
-    ] is None
+    assert (
+        report["configuration"]["server_deployment"]["settings"]["APP_VLM_TEMPERATURE"]
+        is None
+    )
     settings = report["configuration"]["server_deployment"]["settings"]
-    assert set(settings) == set(multimodal_eval.SERVER_SETTING_PROTOTYPES)
+    assert set(settings) == set(multimodal_eval.SERVER_SETTING_TYPES)
     assert all(value is None for value in settings.values())
 
 
@@ -438,7 +449,12 @@ def test_load_server_settings_marks_complete_file_provenance(tmp_path: Path) -> 
         json.dumps(
             {
                 "schema_version": "multimodal-server-settings-v1",
-                "settings": multimodal_eval.SERVER_SETTING_PROTOTYPES,
+                "settings": {
+                    key: expected_type()
+                    for key, expected_type in (
+                        multimodal_eval.SERVER_SETTING_TYPES.items()
+                    )
+                },
             }
         ),
         encoding="utf-8",
@@ -459,7 +475,9 @@ def test_checked_in_server_settings_example_is_complete() -> None:
     assert metadata["unavailable_keys"] == []
 
 
-def test_local_environment_capture_is_explicit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_environment_capture_is_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("APP_VLM_TEMPERATURE", "0.1")
 
     metadata = multimodal_eval.load_server_settings(
@@ -490,7 +508,9 @@ def test_request_vlm_temperature_report_metadata_is_neutral(tmp_path: Path) -> N
     )
 
 
-def test_report_carries_manifest_coverage_and_ambiguity_metadata(tmp_path: Path) -> None:
+def test_report_carries_manifest_coverage_and_ambiguity_metadata(
+    tmp_path: Path,
+) -> None:
     image = tmp_path / "query.png"
     image.write_bytes(b"fixture")
     manifest = _write_manifest(tmp_path)

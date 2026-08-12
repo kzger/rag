@@ -186,6 +186,11 @@ vlm_template:
     2. If the context or images contain ANY information relevant to the question — even
        partial — you MUST provide an answer using that information. Only reply that you
        cannot answer if the context and images have no connection to the question at all.
+       When multimodal verification is enabled (and the abstention prompt flag is on), this rule is overridden for image
+       identity: do not infer identity from retrieval rank, generic resemblance,
+       category, or logo alone. If verification has not established identity, say it
+       cannot be confirmed; never guess brand, model, or specifications, and use only
+       the verified candidate context for identity or specification claims.
     3. Preserve exact values: reproduce specific numbers, percentages, dates, names, and
        URLs exactly as they appear in the context or images.
     4. When extracting a value from a table or list, identify the exact row/column label

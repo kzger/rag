@@ -206,11 +206,17 @@ envVars:
   ENABLE_VLM_INFERENCE: "False"
   # Opt in to diverse image-page retrieval and later multimodal accuracy stages
   ENABLE_MULTIMODAL_ACCURACY: "False"
+  # Verify image candidates before multimodal generation (abstains when unverified)
+  ENABLE_MULTIMODAL_VERIFICATION_GATE: "False"
+  # Strengthen image-identity abstention instructions when verification is enabled
+  ENABLE_MULTIMODAL_ABSTENTION_PROMPT: "False"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
   VLM_TO_LLM_FALLBACK: "False"
-  # Max images sent to VLM per request (query + context)
-  APP_VLM_MAX_TOTAL_IMAGES: "5"
+  # Max images sent to VLM per request (query + context). Kept at the Compose
+  # default so the verification gate's one-query-plus-two-candidate budget holds
+  # identically in both deployment modes.
+  APP_VLM_MAX_TOTAL_IMAGES: "3"
   # Whether to filter out reasoning tokens from VLM responses (stream only content, not reasoning)
   VLM_FILTER_THINK_TOKENS: "true"
   # Enable Nemotron Omni reasoning mode (separates chain-of-thought into a `reasoning` delta)

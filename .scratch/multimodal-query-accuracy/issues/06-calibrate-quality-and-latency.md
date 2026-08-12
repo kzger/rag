@@ -14,3 +14,49 @@
 - [ ] 額外 Qwen 呼叫具有有界 token 與候選數；若 latency 不可接受，優先縮短結構化輸出、平行 retrieval 或快取圖片摘要。
 - [ ] 所有可調參數具設定說明、安全範圍與回退值，且不要求修改 API request schema。
 - [ ] 報告明確列出尚未達標案例，不以少量成功示例取代整體指標。
+
+## Comments
+
+- 2026-08-12 (code review): **Item 4 is blocked by a plumbing gap, not by missing analysis.**
+  `deploy/compose/docker-compose-rag-server.yaml` passes only three multimodal variables into the
+  container (`ENABLE_MULTIMODAL_ACCURACY`, `ENABLE_MULTIMODAL_VERIFICATION_GATE`,
+  `ENABLE_MULTIMODAL_ABSTENTION_PROMPT`) plus `APP_VLM_MAX_TOTAL_IMAGES` and `APP_VLM_TEMPERATURE`.
+  There is no `env_file`, so the compose file's explicit `environment:` list is the whole contract:
+  setting any other knob in `deploy/compose/.env` has no effect on the container.
+
+  Verified against the running deployment:
+
+  ```
+  $ docker exec rag-server env | grep MULTIMODAL
+  ENABLE_MULTIMODAL_ABSTENTION_PROMPT=true
+  ENABLE_MULTIMODAL_ACCURACY=true
+  ENABLE_MULTIMODAL_VERIFICATION_GATE=true
+
+  $ docker exec rag-server python -c "...NvidiaRAGConfig().multimodal_accuracy..."
+  visual_candidates=5  text_candidates=5  max_candidates=5
+  visual_weight=0.5    text_weight=0.5    rrf_k=60
+  verification_max_candidates=2  verification_min_match_confidence=0.8
+  ```
+
+  So `MULTIMODAL_VISUAL_CANDIDATES`, `MULTIMODAL_TEXT_CANDIDATES`, `MULTIMODAL_MAX_CANDIDATES`,
+  `MULTIMODAL_VISUAL_WEIGHT`, `MULTIMODAL_TEXT_WEIGHT`, `MULTIMODAL_RRF_K` and the
+  `MULTIMODAL_VERIFICATION_*` thresholds are **currently unreachable at runtime** — they sit at the
+  `configuration.py` defaults regardless of configuration. This is why the calibration run selected
+  no values for them: they could not be varied. **Adding them to the compose `environment:` block is
+  a prerequisite for item 4**; only temperature and the image budget are tunable today.
+
+- 2026-08-12: **`APP_VLM_MAX_TOTAL_IMAGES` 5 -> 3 is unsupported by the committed evidence.** All
+  four calibration runs executed at 3; no 3-vs-5 comparison exists. The value was aligned across
+  Compose, Helm and `docs/vlm.md` for consistency, but the choice itself is still unvalidated.
+
+- 2026-08-12: **Latency is the largest open risk.** Feature-on adds roughly +7.9 s TTFT p50 and
+  +10.2 s p95 over feature-off, on top of a ~6.5 s baseline. Item 6's mitigations (shorter
+  structured output, parallel retrieval, cached image summaries) were not implemented. Deciding
+  whether this is acceptable is a product call and should precede further accuracy tuning, since
+  rejection is already 1.0/1.0 and identification 0.75.
+
+- 2026-08-12: Helm parity for the ticket-08 verification flags and `prompt.yaml` was repaired while
+  reviewing this ticket (it was the cause of two long-failing `test_compose_helm_parity` tests).
+  Kubernetes is not a current deployment target, so no further Helm work is planned; any new tunable
+  added to compose will need the same entry in `deploy/helm/nvidia-blueprint-rag/values.yaml` to keep
+  that test green.

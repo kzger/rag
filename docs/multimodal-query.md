@@ -495,6 +495,40 @@ is enabled, so the legacy pipeline remains the fallback. Verification decisions 
 logged as `Verifier judgment`, `Bridge matches`, and `Verification outcome` lines
 carrying structured fields only — never image URIs or base64 payloads.
 
+### Which settings reach the container
+
+`deploy/compose/docker-compose-rag-server.yaml` declares no `env_file`, so its explicit
+`environment:` block is the whole contract — a variable absent from that list has no
+effect on the container even when exported in `deploy/compose/.env`.
+
+Tunable today in the Compose deployment:
+
+| Variable | Purpose |
+| --- | --- |
+| `ENABLE_MULTIMODAL_ACCURACY` | Staged accuracy pipeline (diverse pages, query understanding, fusion) |
+| `ENABLE_MULTIMODAL_VERIFICATION_GATE` | Candidate verification and abstention |
+| `ENABLE_MULTIMODAL_ABSTENTION_PROMPT` | Conditional identity-abstention prompt rules |
+| `APP_VLM_MAX_TOTAL_IMAGES` | Image budget the gate is sized against (default 3) |
+| `APP_VLM_TEMPERATURE` | VLM generation temperature |
+
+Read from the environment by `configuration.py` but **not currently forwarded by
+Compose**, so they stay at their code defaults: `MULTIMODAL_VISUAL_CANDIDATES` (5),
+`MULTIMODAL_TEXT_CANDIDATES` (5), `MULTIMODAL_MAX_CANDIDATES` (5),
+`MULTIMODAL_VISUAL_WEIGHT` (0.5), `MULTIMODAL_TEXT_WEIGHT` (0.5), `MULTIMODAL_RRF_K`
+(60), `MULTIMODAL_VERIFICATION_MAX_CANDIDATES` (2),
+`MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE` (0.80),
+`MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE` (0.80),
+`MULTIMODAL_VERIFICATION_MAX_TOKENS` (512) and `MULTIMODAL_VERIFICATION_TEMPERATURE`
+(0.0). To tune any of these, add it to the compose `environment:` block first — and add
+the matching key to `deploy/helm/nvidia-blueprint-rag/values.yaml`, which the
+`test_compose_helm_parity` unit test enforces.
+
+Verify what a running server actually resolved with:
+
+```bash
+docker exec rag-server env | grep MULTIMODAL
+```
+
 ## Quality and latency calibration
 
 The public evaluation seam records request fields separately from deployment

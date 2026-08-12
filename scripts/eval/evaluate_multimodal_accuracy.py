@@ -14,7 +14,7 @@ import statistics
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, NamedTuple
 
 import requests
 
@@ -139,42 +139,42 @@ class EvaluationConfig(NamedTuple):
 
 
 SERVER_SETTINGS_SCHEMA = "multimodal-server-settings-v1"
-SERVER_SETTING_PROTOTYPES: dict[str, Any] = {
-    "ENABLE_QUERY_UNDERSTANDING": True,
-    "MULTIMODAL_VISUAL_CANDIDATES": 5,
-    "MULTIMODAL_TEXT_CANDIDATES": 5,
-    "MULTIMODAL_MAX_CANDIDATES": 5,
-    "MULTIMODAL_VISUAL_WEIGHT": 0.5,
-    "MULTIMODAL_TEXT_WEIGHT": 0.5,
-    "MULTIMODAL_RRF_K": 60,
-    "MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS": 512,
-    "MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE": 0.0,
-    "APP_VECTORSTORE_SEARCHTYPE": "dense",
-    "APP_VECTORSTORE_RANKER_TYPE": "rrf",
-    "APP_VECTORSTORE_DENSE_WEIGHT": 0.5,
-    "APP_VECTORSTORE_SPARSE_WEIGHT": 0.5,
-    "APP_VECTORSTORE_EF": 100,
-    "VECTOR_DB_TOPK": 100,
-    "APP_RETRIEVER_TOPK": 10,
-    "RERANKER_SCORE_THRESHOLD": 0.0,
-    "APP_VLM_TEMPERATURE": 0.7,
-    "APP_VLM_TOP_P": 1.0,
-    "APP_VLM_MAX_TOKENS": 4096,
-    "APP_VLM_MAX_TOTAL_IMAGES": 5,
-    "APP_VLM_ENABLE_THINKING": True,
-    "APP_VLM_THINKING_TOKEN_BUDGET": 0,
-    "ENABLE_MULTIMODAL_ACCURACY": False,
-    "ENABLE_MULTIMODAL_VERIFICATION_GATE": False,
-    "MULTIMODAL_VERIFICATION_MAX_CANDIDATES": 2,
-    "MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE": 0.8,
-    "MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE": 0.8,
-    "MULTIMODAL_VERIFICATION_MAX_TOKENS": 512,
-    "MULTIMODAL_VERIFICATION_TEMPERATURE": 0.0,
-    "ENABLE_MULTIMODAL_ABSTENTION_PROMPT": False,
-    "VLM_TO_LLM_FALLBACK": True,
-}
+# Only the key set and each value's type are needed, to validate a supplied settings
+# file. Holding default *values* here would duplicate configuration.py and silently
+# drift from it, so the server's own defaults are deliberately not mirrored.
 SERVER_SETTING_TYPES: dict[str, type] = {
-    key: type(value) for key, value in SERVER_SETTING_PROTOTYPES.items()
+    "ENABLE_QUERY_UNDERSTANDING": bool,
+    "MULTIMODAL_VISUAL_CANDIDATES": int,
+    "MULTIMODAL_TEXT_CANDIDATES": int,
+    "MULTIMODAL_MAX_CANDIDATES": int,
+    "MULTIMODAL_VISUAL_WEIGHT": float,
+    "MULTIMODAL_TEXT_WEIGHT": float,
+    "MULTIMODAL_RRF_K": int,
+    "MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS": int,
+    "MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE": float,
+    "APP_VECTORSTORE_SEARCHTYPE": str,
+    "APP_VECTORSTORE_RANKER_TYPE": str,
+    "APP_VECTORSTORE_DENSE_WEIGHT": float,
+    "APP_VECTORSTORE_SPARSE_WEIGHT": float,
+    "APP_VECTORSTORE_EF": int,
+    "VECTOR_DB_TOPK": int,
+    "APP_RETRIEVER_TOPK": int,
+    "RERANKER_SCORE_THRESHOLD": float,
+    "APP_VLM_TEMPERATURE": float,
+    "APP_VLM_TOP_P": float,
+    "APP_VLM_MAX_TOKENS": int,
+    "APP_VLM_MAX_TOTAL_IMAGES": int,
+    "APP_VLM_ENABLE_THINKING": bool,
+    "APP_VLM_THINKING_TOKEN_BUDGET": int,
+    "ENABLE_MULTIMODAL_ACCURACY": bool,
+    "ENABLE_MULTIMODAL_VERIFICATION_GATE": bool,
+    "MULTIMODAL_VERIFICATION_MAX_CANDIDATES": int,
+    "MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE": float,
+    "MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE": float,
+    "MULTIMODAL_VERIFICATION_MAX_TOKENS": int,
+    "MULTIMODAL_VERIFICATION_TEMPERATURE": float,
+    "ENABLE_MULTIMODAL_ABSTENTION_PROMPT": bool,
+    "VLM_TO_LLM_FALLBACK": bool,
 }
 
 
@@ -211,6 +211,10 @@ def load_dataset(manifest_path: str | Path) -> EvaluationDataset:
     ambiguity = raw.get("ambiguity", {})
     if not isinstance(coverage, dict) or not isinstance(ambiguity, dict):
         raise ValueError("Evaluation manifest coverage and ambiguity must be objects")
+    coverage = dict(coverage)
+    coverage["present"] = sorted(
+        {str(tag) for raw_case in raw_cases for tag in raw_case.get("coverage", [])}
+    )
 
     cases: list[EvaluationCase] = []
     seen_ids: set[str] = set()
@@ -463,7 +467,6 @@ def compute_metrics(observations: list[CaseObservation]) -> dict[str, Any]:
         for item in identification_cases
     }
 
-
     identification_hits = sum(identification_results.values())
 
     predicted_rejections = [
@@ -535,7 +538,9 @@ def rescore_report(report: dict[str, Any]) -> dict[str, Any]:
         observations.append(
             CaseObservation(
                 case_id=str(case.get("case_id", "")),
-                expected_sources=[str(item) for item in case.get("expected_sources", [])],
+                expected_sources=[
+                    str(item) for item in case.get("expected_sources", [])
+                ],
                 accepted_answer_terms=[
                     str(item) for item in case.get("accepted_answer_terms", [])
                 ],
@@ -659,34 +664,37 @@ def load_server_settings(
     if settings_path is None and not capture_local_environment:
         return {
             "provenance": "unavailable",
-            "settings": {key: None for key in SERVER_SETTING_PROTOTYPES},
-            "unavailable_keys": list(SERVER_SETTING_PROTOTYPES),
+            "settings": {key: None for key in SERVER_SETTING_TYPES},
+            "unavailable_keys": list(SERVER_SETTING_TYPES),
         }
     if capture_local_environment and settings_path is not None:
         raise ValueError("choose settings file or local environment, not both")
     if capture_local_environment:
         values = {
-            key: os.environ[key]
-            for key in SERVER_SETTING_PROTOTYPES
-            if key in os.environ
+            key: os.environ[key] for key in SERVER_SETTING_TYPES if key in os.environ
         }
         provenance = "local-process-environment"
     else:
-        assert settings_path is not None
         path = Path(settings_path)
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as error:
-            raise ValueError(f"Unable to read server settings {path}: {error}") from error
+            raise ValueError(
+                f"Unable to read server settings {path}: {error}"
+            ) from error
         if raw.get("schema_version") != SERVER_SETTINGS_SCHEMA:
             raise ValueError(f"server settings require {SERVER_SETTINGS_SCHEMA}")
         values = raw.get("settings")
         if not isinstance(values, dict):
             raise ValueError("server settings must contain an object")
-        unknown = set(values) - set(SERVER_SETTING_PROTOTYPES)
+        unknown = set(values) - set(SERVER_SETTING_TYPES)
         if unknown:
             raise ValueError(f"unknown server setting: {sorted(unknown)[0]}")
-        provenance = "explicit-file-complete" if len(values) == len(SERVER_SETTING_PROTOTYPES) else "explicit-file-partial"
+        provenance = (
+            "explicit-file-complete"
+            if len(values) == len(SERVER_SETTING_TYPES)
+            else "explicit-file-partial"
+        )
     settings: dict[str, Any] = {}
     for key, expected_type in SERVER_SETTING_TYPES.items():
         value = values.get(key)

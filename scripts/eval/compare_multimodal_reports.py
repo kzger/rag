@@ -21,19 +21,13 @@ PERCENTILES = ("p50", "p95")
 Selection = Literal["baseline", "candidate", "neither"]
 
 
-def _identity(report: dict[str, Any]) -> tuple[Any, ...]:
-    dataset = report.get("dataset", {})
-    configuration = report.get("configuration", {})
-    assets = sorted(
-        (asset.get("path"), asset.get("sha256"))
-        for asset in dataset.get("assets", [])
-    )
-    return (
-        dataset.get("version"),
-        dataset.get("manifest"),
-        tuple(assets),
-        configuration.get("model"),
-        configuration.get("collection"),
+def _asset_fingerprint(report: dict[str, Any]) -> tuple[tuple[Any, Any], ...]:
+    """Return the report's assets as a stable, order-independent fingerprint."""
+    return tuple(
+        sorted(
+            (asset.get("path"), asset.get("sha256"))
+            for asset in report.get("dataset", {}).get("assets", [])
+        )
     )
 
 
@@ -50,7 +44,7 @@ def _validate_compatible(baseline: dict[str, Any], candidate: dict[str, Any]) ->
         raise ValueError("dataset manifest hash unavailable")
     if baseline_manifest_hash != candidate_manifest_hash:
         raise ValueError("dataset manifest hash differs")
-    if _identity(baseline)[2] != _identity(candidate)[2]:
+    if _asset_fingerprint(baseline) != _asset_fingerprint(candidate):
         raise ValueError("assets differ")
     baseline_config = baseline.get("configuration", {})
     candidate_config = candidate.get("configuration", {})
@@ -70,20 +64,30 @@ def _validate_compatible(baseline: dict[str, Any], candidate: dict[str, Any]) ->
 
 def _server_provenance_complete(report: dict[str, Any]) -> bool:
     deployment = report.get("configuration", {}).get("server_deployment", {})
-    return deployment.get("provenance") == "explicit-file-complete" and not deployment.get(
-        "unavailable_keys"
-    )
+    return deployment.get(
+        "provenance"
+    ) == "explicit-file-complete" and not deployment.get("unavailable_keys")
 
 
 def _changed_calibration_keys(
     baseline: dict[str, Any], candidate: dict[str, Any]
 ) -> list[str]:
-    baseline_settings = baseline.get("configuration", {}).get("server_deployment", {}).get("settings", {})
-    candidate_settings = candidate.get("configuration", {}).get("server_deployment", {}).get("settings", {})
+    baseline_settings = (
+        baseline.get("configuration", {})
+        .get("server_deployment", {})
+        .get("settings", {})
+    )
+    candidate_settings = (
+        candidate.get("configuration", {})
+        .get("server_deployment", {})
+        .get("settings", {})
+    )
     baseline_request = baseline.get("configuration", {}).get("request_fields", {})
     candidate_request = candidate.get("configuration", {}).get("request_fields", {})
     keys = sorted(set(baseline_settings) | set(candidate_settings))
-    changed = [key for key in keys if baseline_settings.get(key) != candidate_settings.get(key)]
+    changed = [
+        key for key in keys if baseline_settings.get(key) != candidate_settings.get(key)
+    ]
     request_keys = sorted(set(baseline_request) | set(candidate_request))
     changed.extend(
         f"request.{key}"
@@ -101,8 +105,11 @@ def _metric(report: dict[str, Any], name: str) -> float | None:
 def _latency_metric(
     report: dict[str, Any], stage: str, percentile: str
 ) -> float | None:
-    value = report.get("metrics", {}).get("latency_seconds", {}).get(stage, {}).get(
-        percentile
+    value = (
+        report.get("metrics", {})
+        .get("latency_seconds", {})
+        .get(stage, {})
+        .get(percentile)
     )
     return float(value) if isinstance(value, int | float) else None
 
@@ -168,9 +175,7 @@ def compare_reports(
                     candidate_value - baseline_value
                 )
     baseline_cases = {case.get("case_id"): case for case in baseline.get("cases", [])}
-    candidate_cases = {
-        case.get("case_id"): case for case in candidate.get("cases", [])
-    }
+    candidate_cases = {case.get("case_id"): case for case in candidate.get("cases", [])}
     for label, cases in (("baseline", baseline_cases), ("candidate", candidate_cases)):
         for case_id, case in cases.items():
             if case.get("error"):

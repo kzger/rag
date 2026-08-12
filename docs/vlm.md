@@ -187,13 +187,13 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
 
 ## Configuration
 
-- **Image limits**: `APP_VLM_MAX_TOTAL_IMAGES` (default: 5) is the maximum total images (from query, history, and context) included in the VLM prompt. Set using environment variables and restart the rag-server to apply.
+- **Image limits**: `APP_VLM_MAX_TOTAL_IMAGES` (default: 3 in the Docker Compose and Helm deployments) is the maximum total images (from query, history, and context) included in the VLM prompt. The multimodal verification gate is budgeted against this value — one query image plus two candidate pages — so lowering it below 3 reduces the candidates that gate can compare. Set using environment variables and restart the rag-server to apply.
 
    Example (Docker Compose):
 
    ```bash
    export ENABLE_VLM_INFERENCE="true"
-   export APP_VLM_MAX_TOTAL_IMAGES="5"
+   export APP_VLM_MAX_TOTAL_IMAGES="3"
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
    ```
 
