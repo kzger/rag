@@ -529,6 +529,34 @@ Verify what a running server actually resolved with:
 docker exec rag-server env | grep MULTIMODAL
 ```
 
+### Calibrated values
+
+Measured on a 9-case multimodal set (`scripts/eval/evaluate_multimodal_accuracy.py`) against
+a deployed Qwen server. Accuracy is held to identification 0.750, unsupported-claim 0.111 and
+rejection precision/recall 1.0/1.0 with zero citation leak; anything that moved those was
+rejected.
+
+**The values below are the defaults — the sweep found nothing worth changing.** Every
+alternative either damaged accuracy or made no measurable difference. Treat stage timings as
+having roughly ±0.2 s of run-to-run noise and TTFT p50 about ±0.5 s, and confirm any apparent
+win with a second run before adopting it.
+
+| Variable | Value | Safe range | Why |
+| --- | --- | --- | --- |
+| `MULTIMODAL_VERIFICATION_MAX_CANDIDATES` | `2` | 2 | 1 drops identification to 0.250 and rejection precision to 0.714 — the gate then only inspects the top-ranked page. Raising it needs a matching `APP_VLM_MAX_TOTAL_IMAGES`. |
+| `MULTIMODAL_VERIFICATION_MAX_TOKENS` | `512` | ≥512 | 256 collapses identification to 0.000. The verifier emits free-text `supporting_evidence` and `conflicts` per candidate and needs the room. |
+| `MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS` | `512` | 256-512 | 256 matches 512 on accuracy but is **not** faster: repeated runs gave 1420 and 1787 ms at 256 against 1627-1783 ms at 512, so the ranges overlap and a single-run 0.21 s "saving" did not reproduce. |
+| `APP_VLM_MAX_TOTAL_IMAGES` | `3` | ≥3 with the gate on | One query image plus two candidate pages. Below 3 starves the gate. Not compared against 5. |
+| `MULTIMODAL_VISUAL/TEXT/MAX_CANDIDATES` | `5` | 3-5 | 3 and 5 were indistinguishable in both accuracy and latency. |
+| `MULTIMODAL_VISUAL_WEIGHT` / `TEXT_WEIGHT` / `RRF_K` | `0.5` / `0.5` / `60` | — | Not varied; no evidence either way. |
+
+The verification stage costs ~4.4 s of a ~7 s TTFT and that cost is **decode-bound, not
+image-bound**: halving the output budget moved it to 3.56 s, while downscaling every image
+moved it not at all. Since the output budget cannot be reduced without losing accuracy, the
+gate's latency is the price of the rejection guarantee. Turning
+`ENABLE_MULTIMODAL_VERIFICATION_GATE` off is the only large saving available, and it forfeits
+that guarantee.
+
 ## Quality and latency calibration
 
 The public evaluation seam records request fields separately from deployment

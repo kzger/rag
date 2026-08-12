@@ -130,7 +130,7 @@ the shipped configuration; quality is unchanged unless stated.
 
 | config | effect | quality | verdict |
 | --- | --- | --- | --- |
-| `MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS=256` | QU 1643 -> 1420 ms | identical on all six metrics | safe, ~0.21 s |
+| `MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS=256` | **did not reproduce** | identical on all six metrics | no gain; keep 512 |
 | `MULTIMODAL_VISUAL/TEXT/MAX_CANDIDATES=3` | no measurable change | identical | no effect |
 | `APP_VLM_MAX_IMAGE_DIMENSION=1024` | verification 4434 -> 4432 ms | 0.750 -> 0.500 | no effect; quality delta is noise |
 | `APP_VLM_MAX_IMAGE_DIMENSION=768` | verification 4434 -> 4433 ms | 0.750 (unchanged) | no effect |
@@ -154,8 +154,18 @@ explains why it so often returns a layout `mismatch`, and therefore why the mode
 bridge had to exist. Rendering full pages for verification may raise identification accuracy
 (currently 0.750); it will not make anything faster.
 
-**Item 3 / item 6 conclusion:** configuration-level tuning is exhausted. The only safe saving
-is query-understanding tokens at ~0.21 s, about 3% of a ~7 s TTFT. Verification's ~4.4 s is
-63% of TTFT and is the price of the rejection guarantee (precision and recall both 1.0,
-citation leak 0.0). Meaningful speed-up requires either accepting weaker accuracy or a
+**The one apparent win did not survive a confirmation run.** `MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS=256`
+first measured 1420 ms against a 1643 ms baseline and was adopted; re-measuring it on the
+final configuration gave 1787 ms. Collected medians are 1627, 1643, 1758, 1782, 1783 ms at
+512 tokens and 1420, 1787 ms at 256 — the 256 values straddle the entire 512 range, so the
+"saving" was a single-run artifact. The setting was reverted. Useful noise figures for future
+work: stage medians carry roughly ±0.2 s and TTFT p50 about ±0.5 s across identical runs, so
+no single run should be trusted for a sub-second effect.
+
+**Item 3 / item 6 conclusion:** configuration-level tuning is exhausted and produced **no
+change worth shipping**. The shipped defaults are already the best known values, and two of
+them (`MULTIMODAL_VERIFICATION_MAX_CANDIDATES=2`, `MULTIMODAL_VERIFICATION_MAX_TOKENS=512`)
+are now evidence-backed rather than inherited, which is what item 4 was missing. Verification's
+~4.4 s is 63% of TTFT and is the price of the rejection guarantee (precision and recall both
+1.0, citation leak 0.0). Meaningful speed-up requires either accepting weaker accuracy or a
 faster model/hardware, not different settings.
