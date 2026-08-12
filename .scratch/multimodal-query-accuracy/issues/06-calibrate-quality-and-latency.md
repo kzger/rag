@@ -108,9 +108,54 @@ as evidence-backed rather than inherited:
   measurement noise.
 
 **Latency conclusion for item 6:** the verification stage cannot be made cheaper through
-these knobs without breaking the accuracy the gate exists to provide. Remaining options are
-architectural, not configuration: overlapping query understanding with visual retrieval
-(bounded by dual retrieval's 0.45 s, so ~0.45 s at best), caching image summaries across
-turns, or sending smaller page images. Whether ~7 s TTFT is acceptable is still the
-product decision this ticket flagged as unresolved — but it is now clear that the cost buys
-the rejection guarantee, and that cutting it cheaply is not available.
+these knobs without breaking the accuracy the gate exists to provide. Whether ~7 s TTFT is
+acceptable is still the product decision this ticket flagged as unresolved — but it is now
+clear that the cost buys the rejection guarantee, and that cutting it cheaply is not
+available.
+
+Two architectural options were considered and are **not** worth pursuing on this evidence:
+
+- *Sending smaller page images* — implemented and measured; no effect at all. See the next
+  section.
+- *Overlapping query understanding with visual retrieval* — only visual retrieval is
+  independent of query understanding (the text path needs its OCR/model fields to build the
+  enriched query), and `dual_retrieval_ms` is ~0.45 s for **both** paths combined. The
+  saving is therefore roughly 0.15 s, not the 0.45 s a first reading of the stage table
+  suggests, in exchange for concurrency in `_dual_retrieval_for_image_query`.
+
+## Calibration evidence — retrieval tunables and image size (2026-08-12)
+
+Continuation of the grid above, now that every tunable is reachable. Baseline throughout is
+the shipped configuration; quality is unchanged unless stated.
+
+| config | effect | quality | verdict |
+| --- | --- | --- | --- |
+| `MULTIMODAL_QUERY_UNDERSTANDING_MAX_TOKENS=256` | QU 1643 -> 1420 ms | identical on all six metrics | safe, ~0.21 s |
+| `MULTIMODAL_VISUAL/TEXT/MAX_CANDIDATES=3` | no measurable change | identical | no effect |
+| `APP_VLM_MAX_IMAGE_DIMENSION=1024` | verification 4434 -> 4432 ms | 0.750 -> 0.500 | no effect; quality delta is noise |
+| `APP_VLM_MAX_IMAGE_DIMENSION=768` | verification 4434 -> 4433 ms | 0.750 (unchanged) | no effect |
+
+**Do not retry image downscaling.** It was implemented, measured and reverted. Verification
+latency did not move at all (4432/4433/4434 ms across off/1024/768), and the identification
+figures were non-monotonic (0.750 -> 0.500 -> 0.750), i.e. run-to-run noise rather than a
+size effect. The reason is now established: **the verification call is decode-bound, not
+prefill-bound.** Halving the output budget moved it 4403 -> 3557 ms, while shrinking every
+image moved it not at all. Since the output budget cannot be reduced without collapsing
+accuracy (see the grid above), there is no latency available here.
+
+Stored page images are also far smaller than assumed — sampling 19 image chunks in
+`jorjin_glasses` gave a maximum of 960x539 and a minimum of 66x31 at 1-2 KB, with only 7 of
+19 at or above 768 px on the longest edge. At `1024` nothing but the query image was resized
+at all.
+
+**Follow-up worth a separate ticket:** those page images are element crops, not page
+renders. Asking the verifier to match a product photograph against a 66x31 sliver plausibly
+explains why it so often returns a layout `mismatch`, and therefore why the model-token
+bridge had to exist. Rendering full pages for verification may raise identification accuracy
+(currently 0.750); it will not make anything faster.
+
+**Item 3 / item 6 conclusion:** configuration-level tuning is exhausted. The only safe saving
+is query-understanding tokens at ~0.21 s, about 3% of a ~7 s TTFT. Verification's ~4.4 s is
+63% of TTFT and is the price of the rejection guarantee (precision and recall both 1.0,
+citation leak 0.0). Meaningful speed-up requires either accepting weaker accuracy or a
+faster model/hardware, not different settings.
