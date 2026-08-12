@@ -4,9 +4,15 @@ import json
 
 from langchain_core.documents import Document
 from nvidia_rag.rag_server.multimodal_accuracy import (
+    PRODUCT_LINE_ALIASES,
+    CandidateVerification,
     QueryUnderstanding,
     build_enriched_text_query,
+    canonicalize_product_line,
+    decide_multimodal_outcome,
     dedupe_by_page,
+    derive_product_line_matches,
+    derive_query_model_matches,
     fuse_visual_text_candidates,
     parse_query_understanding,
 )
@@ -187,3 +193,109 @@ def test_fuse_skips_documents_without_page_identity(caplog) -> None:
 
     assert len(result) == 1
     assert "Skipping candidate without source/page metadata" in caplog.text
+
+
+def test_brand_only_identity_does_not_verify() -> None:
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                candidate_id="C1",
+                decision="match",
+                confidence=0.99,
+                evidence_type="exact_visible_text",
+                supporting_evidence="Visible text: JORJIN",
+                resolved_identity="JORJIN",
+            )
+        ]
+    )
+
+    assert result.outcome == "ambiguous"
+
+
+def test_query_model_bridge_matches_page_and_source_tokens() -> None:
+    understanding = QueryUnderstanding(model="J7EF Plus", ocr_text="MODEL J10A")
+    matches = derive_query_model_matches(
+        understanding,
+        [
+            document(source="J7EF Sales kit.pdf", content="specification"),
+            document(source="J10A Sales kit.pdf", content="specification"),
+        ],
+    )
+
+    assert matches["C1"].matched_token == "J7EF"
+    assert matches["C1"].provenance == "source_name"
+    assert matches["C2"].matched_token == "J10A"
+
+
+def test_query_model_bridge_requires_boundaries_and_strong_tokens() -> None:
+    understanding = QueryUnderstanding(model="J10A", ocr_text="JORJIN logo 1080")
+    matches = derive_query_model_matches(
+        understanding,
+        [document(source="J10AB.pdf", content="JORJIN logo 1080")],
+    )
+
+    assert matches == {}
+
+
+def test_query_model_bridge_overrides_photo_layout_mismatch() -> None:
+    understanding = QueryUnderstanding(model="J7EF Plus")
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                candidate_id="C1",
+                decision="mismatch",
+                confidence=0.99,
+                evidence_type="generic_similarity",
+            )
+        ],
+        model_text_matches=derive_query_model_matches(
+            understanding,
+            [document(source="J7EF Sales kit.pdf")],
+        ),
+    )
+
+    assert result.outcome == "verified"
+
+
+def test_product_line_alias_matches_punctuation_and_boundaries() -> None:
+    understanding = QueryUnderstanding(ocr_text="JREALITY JORJIN")
+    assert canonicalize_product_line("J-Reality") == "jreality"
+    matches = derive_product_line_matches(
+        understanding,
+        [document(source="J7EF PULS 產品規格_v3.pdf", content="J7EF Plus")],
+        {"jreality"},
+        {"jreality": "J7EF PULS 產品規格_v3.pdf"},
+    )
+    assert matches["C1"].tier == "product_line"
+    assert derive_product_line_matches(
+        QueryUnderstanding(ocr_text="JREALITYX"),
+        [document(source="J7EF PULS 產品規格_v3.pdf", content="J7EF Plus")],
+        {"jreality"},
+        {"jreality": "J7EF PULS 產品規格_v3.pdf"},
+    ) == {}
+
+
+def test_product_line_alias_requires_registry_and_global_eligibility() -> None:
+    assert "jreality" in PRODUCT_LINE_ALIASES
+    understanding = QueryUnderstanding(ocr_text="JREALITY")
+    assert derive_product_line_matches(
+        understanding, [document(content="J-Reality")], set()
+    ) == {}
+
+
+def test_product_line_alias_matches_even_with_brand_observation() -> None:
+    matches = derive_product_line_matches(
+        QueryUnderstanding(ocr_text="JORJIN JREALITY"),
+        [document(source="J7EF PULS 產品規格_v3.pdf", content="J7EF Plus")],
+        {"jreality"},
+        {"jreality": "J7EF PULS 產品規格_v3.pdf"},
+    )
+    result = decide_multimodal_outcome(
+        [
+            CandidateVerification(
+                "C1", "mismatch", 0.99, "generic_similarity"
+            )
+        ],
+        product_line_matches=matches,
+    )
+    assert result.outcome == "verified"

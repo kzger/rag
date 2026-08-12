@@ -150,6 +150,31 @@ class TestVLM:
         assert len(user_msg["content"]) == 2
         assert user_msg["content"][1]["type"] == "image_url"
 
+    def test_extract_images_accepts_page_image_source_location_without_location_bbox(
+        self,
+    ):
+        object_store = MagicMock()
+        object_store.get_object_from_uri.return_value = base64.b64decode(
+            self.create_test_image_b64()
+        )
+        doc = SimpleNamespace(
+            metadata={
+                "content_metadata": {"type": "image", "page_number": 1},
+                "source": {"source_location": "s3://bucket/page.png"},
+            },
+            page_content="page image",
+        )
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=object_store,
+        ):
+            parts = self.vlm._extract_images_from_docs([doc], 1)
+
+        assert len(parts) == 1
+        object_store.get_object_from_uri.assert_called_once_with(
+            "s3://bucket/page.png"
+        )
+
     def test_extract_and_process_messages_respects_image_budget(self):
         existing_image = {
             "role": "user",

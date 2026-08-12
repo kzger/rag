@@ -388,6 +388,7 @@ def compute_metrics(observations: list[CaseObservation]) -> dict[str, Any]:
         )
         for item, predicted in zip(observations, predicted_rejections, strict=True)
     )
+    rejection_cases = [item for item in observations if item.expected_rejection]
     return {
         "case_count": len(observations),
         "candidate_retrieval_hit_at_k": retrieval_hits / len(retrieval_cases)
@@ -408,6 +409,11 @@ def compute_metrics(observations: list[CaseObservation]) -> dict[str, Any]:
         / (true_positive + false_negative)
         if true_positive + false_negative
         else 0.0,
+        "rejection_citation_leak_rate": (
+            sum(bool(item.citations) for item in rejection_cases) / len(rejection_cases)
+            if rejection_cases
+            else 0.0
+        ),
         "latency_seconds": {
             "retrieval": _latency_summary(
                 [item.search_seconds for item in observations]
@@ -429,6 +435,7 @@ def build_report(
     dataset: EvaluationDataset,
     observations: list[CaseObservation],
     config: EvaluationConfig,
+    variant: str = "gate-off",
 ) -> dict[str, Any]:
     """Create a reproducibility report containing no image bytes or credentials."""
     assets = sorted(
@@ -441,6 +448,7 @@ def build_report(
         }
     )
     return {
+        "variant": variant,
         "dataset": {
             "version": dataset.version,
             "manifest": dataset.manifest_path.name,
@@ -477,6 +485,10 @@ def build_report(
                 "Precision and recall of configured rejection phrases against cases "
                 "annotated expected_rejection=true."
             ),
+            "rejection_citation_leak_rate": (
+                "Fraction of expected-rejection cases that emitted any citation; "
+                "expected value is zero."
+            ),
             "retrieval_latency": (
                 "Wall-clock latency of the public /v1/search candidate probe."
             ),
@@ -486,6 +498,9 @@ def build_report(
             {
                 **item._asdict(),
                 "answer": DATA_URI_PATTERN.sub("[REDACTED_IMAGE_DATA]", item.answer),
+                "expected_rejection_has_zero_citations": (
+                    not item.citations if item.expected_rejection else None
+                ),
             }
             for item in observations
         ],
@@ -593,6 +608,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--reranker-top-k", type=int, default=5)
     parser.add_argument("--timeout", type=float, default=600.0)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--variant", default="gate-off")
     return parser.parse_args()
 
 
@@ -620,6 +636,7 @@ def main() -> int:
         dataset=dataset,
         observations=observations,
         config=config,
+        variant=args.variant,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

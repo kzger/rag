@@ -120,6 +120,10 @@ services:
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-False}
       # Opt in to diverse image-page retrieval and later multimodal accuracy stages
       ENABLE_MULTIMODAL_ACCURACY: ${ENABLE_MULTIMODAL_ACCURACY:-False}
+      # Verify image candidates before multimodal generation (abstains when unverified)
+      ENABLE_MULTIMODAL_VERIFICATION_GATE: ${ENABLE_MULTIMODAL_VERIFICATION_GATE:-False}
+      # Strengthen image-identity abstention instructions when verification is enabled
+      ENABLE_MULTIMODAL_ABSTENTION_PROMPT: ${ENABLE_MULTIMODAL_ABSTENTION_PROMPT:-False}
       # When true, allow falling back to LLM flow if no images are present in query/messages/context
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
       VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-False}

@@ -373,3 +373,53 @@ async def test_generate_fused_candidate_prefers_visual_document(
     assert fused_doc.page_content == "visual page content"
     assert "image_retrieval" in fused_doc.metadata
     assert "multimodal_fusion" in fused_doc.metadata
+
+
+@pytest.mark.asyncio
+async def test_verification_candidate_building_preserves_page_image_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The expanded page image shape used by legacy VLM assembly reaches verification."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    rag = NvidiaRAG()
+    source = {"source_name": "J7EF Sales kit.pdf"}
+    candidate = Document(
+        page_content="retrieval caption",
+        metadata={
+            "source": source,
+            "content_metadata": {"page_number": 3},
+        },
+    )
+    expanded_image = Document(
+        page_content="page image caption",
+        metadata={
+            "source": {
+                "source_name": "J7EF Sales kit.pdf",
+                "source_location": "s3://bucket/page-3.png",
+            },
+            "content_metadata": {"type": "image", "page_number": 3},
+        },
+    )
+    captured: dict[str, object] = {}
+
+    class RecordingVLM:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def verify_candidates_async(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+            return None
+
+    monkeypatch.setattr("nvidia_rag.rag_server.main.VLM", RecordingVLM)
+    await rag._verify_multimodal_candidates(
+        query=multimodal_messages()[0]["content"],
+        candidates=[candidate],
+        expanded_context=[expanded_image],
+        question_text="這是什麼？",
+        vlm_settings={},
+    )
+
+    verification_candidate = captured["candidates"][0]
+    assert verification_candidate.metadata["source"]["source_location"] == (
+        "s3://bucket/page-3.png"
+    )

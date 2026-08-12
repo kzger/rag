@@ -44,8 +44,11 @@ from openai import AsyncOpenAI
 from PIL import Image as PILImage
 
 from nvidia_rag.rag_server.multimodal_accuracy import (
+    CandidateVerification,
     QueryUnderstanding,
+    build_candidate_verification_prompt,
     build_query_understanding_prompt,
+    parse_candidate_verification,
     parse_query_understanding,
 )
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
@@ -168,6 +171,45 @@ class VLM:
         return extra_body
 
     @staticmethod
+    def _image_uri_from_metadata(metadata: dict[str, Any]) -> str:
+        """Resolve the object-store image URI used by nv-ingest page chunks."""
+        content_metadata = metadata.get("content_metadata", {}) or {}
+        source_metadata = metadata.get("source")
+        candidates = [
+            metadata.get("stored_image_uri"),
+            metadata.get("image_uri"),
+            metadata.get("source_location"),
+            content_metadata.get("stored_image_uri")
+            if isinstance(content_metadata, dict)
+            else None,
+            content_metadata.get("image_uri")
+            if isinstance(content_metadata, dict)
+            else None,
+            content_metadata.get("source_location")
+            if isinstance(content_metadata, dict)
+            else None,
+            source_metadata.get("source_location")
+            if isinstance(source_metadata, dict)
+            else None,
+        ]
+        return next((value for value in candidates if isinstance(value, str) and value), "")
+
+    @staticmethod
+    def _is_page_image_document(document: Any, *, nrl_mode: bool = False) -> bool:
+        """Match the same page-image metadata predicate used by legacy VLM assembly."""
+        metadata = getattr(document, "metadata", {}) or {}
+        if nrl_mode:
+            return bool(metadata.get("stored_image_uri"))
+        content_metadata = metadata.get("content_metadata", {}) or {}
+        return content_metadata.get("type") in {
+            "image",
+            "structured",
+            "chart",
+            "table",
+            "infographic",
+        } or bool(VLM._image_uri_from_metadata(metadata))
+
+    @staticmethod
     @trace_function("vlm.normalize_messages")
     def _normalize_messages(
         raw_messages: list[dict[str, Any]],
@@ -288,6 +330,16 @@ class VLM:
 
         # Build system + citations instruction/user prompt
         system_text = (vlm_template.get("system") or "").strip()
+        if (
+            self.config.enable_multimodal_accuracy
+            and self.config.multimodal_accuracy.enable_abstention_prompt
+        ):
+            system_text += (
+                "\n\nVerified image identity is required. Do not infer identity from "
+                "retrieval rank, generic resemblance, category, or logo alone. "
+                "If identity is not verified, explicitly say it cannot be confirmed. "
+                "Never guess brand, model, or specifications."
+            )
         if incoming_system_text:
             system_text = (system_text + " " + incoming_system_text).strip()
         system_message: MessageDict = {"role": "system", "content": system_text}
@@ -407,36 +459,20 @@ class VLM:
                 break
             metadata = getattr(doc, "metadata", {}) or {}
             content_md = metadata.get("content_metadata", {}) or {}
-            doc_type = content_md.get("type")
-            if doc_type not in ["image", "structured"]:
-                continue
-            collection_name = metadata.get("collection_name") or ""
-            source_meta = metadata.get("source", {}) or {}
-            source_id = (
-                source_meta.get("source_id", "")
-                or (
-                    source_meta.get("source_name", "")
-                    if isinstance(source_meta, dict)
-                    else ""
-                )
-                if isinstance(source_meta, dict)
-                else ""
-            )
-            file_name = os.path.basename(str(source_id)) if source_id else ""
-            page_number = content_md.get("page_number")
-            location = content_md.get("location")
-            if not (
-                collection_name
-                and file_name
-                and page_number is not None
-                and location is not None
-            ):
+            doc_type = content_md.get("type") or metadata.get("content_type")
+            image_uri = self._image_uri_from_metadata(metadata)
+            if doc_type not in [
+                "image",
+                "structured",
+                "chart",
+                "table",
+                "infographic",
+            ] and not image_uri:
                 continue
             try:
-                source_location = doc.metadata.get("source").get("source_location")
-                if source_location:
+                if image_uri:
                     raw_content = get_object_store_operator().get_object_from_uri(
-                        source_location
+                        image_uri
                     )
                     content_b64 = base64.b64encode(raw_content).decode("ascii")
                 else:
@@ -583,7 +619,7 @@ class VLM:
                     content_md = (getattr(d, "metadata", {}) or {}).get(
                         "content_metadata", {}
                     ) or {}
-                    if content_md.get("type") in ["image", "structured"]:
+                    if self._is_page_image_document(d, nrl_mode=nrl_mode):
                         image_docs.append(d)
                     else:
                         text_parts.append(getattr(d, "page_content", "") or "")
@@ -653,19 +689,23 @@ class VLM:
         top_p: float,
         max_tokens: int,
         extra_body: dict[str, Any] | None = None,
+        response_format: dict[str, str] | None = None,
     ) -> str:
         """Invoke the VLM model asynchronously and return the complete response string."""
         logger.info(
             f"Invoking VLM async with temperature={temperature}, top_p={top_p}, max_tokens={max_tokens}"
         )
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            extra_body=extra_body,
-        )
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "extra_body": extra_body,
+        }
+        if response_format is not None:
+            request_kwargs["response_format"] = response_format
+        response = await client.chat.completions.create(**request_kwargs)
         content = response.choices[0].message.content if response.choices else ""
         return (content or "").strip()
 
@@ -716,6 +756,85 @@ class VLM:
             understanding.object_category,
         )
         return understanding
+
+    async def verify_candidates_async(
+        self,
+        query_content: Any,
+        candidates: list[Any],
+        question_text: str = "",
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        nrl_mode: bool = False,
+        query_understanding: QueryUnderstanding | None = None,
+    ) -> list[CandidateVerification] | None:
+        """Verify the current query image against page candidates in one call."""
+        candidate_limit = self.config.multimodal_accuracy.verification_max_candidates
+        candidates = list(candidates[:candidate_limit])
+        prompt = build_candidate_verification_prompt(
+            candidates, question_text, query_understanding
+        )
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        query_image_attached = False
+        if isinstance(query_content, list):
+            query_image = next(
+                (
+                    item
+                    for item in query_content
+                    if isinstance(item, dict) and item.get("type") == "image_url"
+                ),
+                None,
+            )
+            if query_image is not None:
+                content.append(query_image)
+                query_image_attached = True
+        candidate_image_count = 0
+        for candidate_index, candidate in enumerate(candidates, start=1):
+            content.append(
+                {
+                    "type": "text",
+                    "text": f"Candidate C{candidate_index} page image:",
+                }
+            )
+            page_image = (
+                self._extract_images_from_docs_nrl([candidate], 1)
+                if nrl_mode
+                else self._extract_images_from_docs([candidate], 1)
+            )
+            if page_image:
+                content.extend(page_image)
+                candidate_image_count += 1
+            logger.info(
+                "Verification candidate C%d image_attached=%s",
+                candidate_index,
+                bool(page_image),
+            )
+        logger.info(
+            "Verification request: query_image=%d candidate_images=%d of %d",
+            int(query_image_attached),
+            candidate_image_count,
+            len(candidates),
+        )
+        messages = [{"role": "system", "content": prompt}, {"role": "user", "content": content}]
+        client = self._create_async_client(
+            self.invoke_url, api_key=self.config.vlm.get_api_key()
+        )
+        response = await self.invoke_model_async(
+            client,
+            self.model_name,
+            messages,
+            temperature=(
+                temperature
+                if temperature is not None
+                else self.config.multimodal_accuracy.verification_temperature
+            ),
+            top_p=1.0,
+            max_tokens=max_tokens or self.config.multimodal_accuracy.verification_max_tokens,
+            response_format={"type": "json_object"},
+        )
+        return parse_candidate_verification(
+            response, [f"C{i}" for i in range(1, len(candidates) + 1)]
+        )
 
     @staticmethod
     def _convert_image_url_to_png_b64(image_url: str) -> str:

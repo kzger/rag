@@ -56,9 +56,16 @@ from requests import ConnectTimeout
 
 from nvidia_rag.rag_server.health import check_all_services_health
 from nvidia_rag.rag_server.multimodal_accuracy import (
+    PRODUCT_LINE_ALIASES,
+    MultimodalRetrievalResult,
+    MultimodalVerificationDecision,
     QueryUnderstanding,
     build_enriched_text_query,
+    canonicalize_product_line,
+    decide_multimodal_outcome,
     dedupe_by_page,
+    derive_product_line_matches,
+    derive_query_model_matches,
     fuse_visual_text_candidates,
 )
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
@@ -2285,6 +2292,250 @@ class NvidiaRAG:
         """
         return self._count_images(content) > 0
 
+    async def _verify_multimodal_candidates(
+        self,
+        *,
+        query: Any,
+        candidates: list[Document],
+        expanded_context: list[Document],
+        question_text: str,
+        vlm_settings: dict[str, Any],
+        query_understanding: QueryUnderstanding | None = None,
+        collection_name: str = "",
+        vdb_op: VDBRag | None = None,
+    ) -> MultimodalVerificationDecision:
+        """Run the one-shot candidate verifier and apply the deterministic policy."""
+        cfg = self.config.multimodal_accuracy
+        verification_candidates: list[Document] = []
+        for candidate in candidates[: cfg.verification_max_candidates]:
+            candidate_identity = self._document_page_identity(candidate)
+            page_docs = [
+                doc
+                for doc in expanded_context
+                if self._document_page_identity(doc) == candidate_identity
+            ]
+            image_doc = next(
+                (
+                    doc
+                    for doc in page_docs
+                    if self._is_page_image_document(doc)
+                ),
+                None,
+            )
+            # With page expansion disabled, the fused visual candidate itself is
+            # the same image-bearing document used by legacy VLM assembly.  Do
+            # not require a second page-expansion row to recover its image.
+            if image_doc is None and self._is_page_image_document(candidate):
+                image_doc = candidate
+            logger.info(
+                "Verification candidate C%d image_attached=%s page_docs=%d",
+                len(verification_candidates) + 1,
+                image_doc is not None,
+                len(page_docs),
+            )
+            candidate_metadata = dict(candidate.metadata)
+            if image_doc is not None:
+                candidate_metadata.update(image_doc.metadata)
+            verification_candidates.append(
+                Document(
+                    page_content="\n\n".join(
+                        doc.page_content for doc in (page_docs or [candidate]) if doc.page_content
+                    ),
+                    metadata=candidate_metadata,
+                )
+            )
+        logger.info(
+            "Verification candidates prepared: %d",
+            len(verification_candidates),
+        )
+        model_text_matches = derive_query_model_matches(
+            query_understanding, verification_candidates
+        )
+        product_line_matches: dict[str, Any] = {}
+        eligible_aliases: set[str] = set()
+        alias_families: dict[str, str] = {}
+        for alias, canonical in PRODUCT_LINE_ALIASES.items():
+            verdict = self._product_line_alias_eligibility(
+                collection_name, alias, canonical, vdb_op
+            )
+            if verdict is not None:
+                eligible_aliases.add(canonicalize_product_line(alias))
+                alias_families[canonicalize_product_line(alias)] = verdict
+        product_line_matches = derive_product_line_matches(
+            query_understanding,
+            verification_candidates,
+            eligible_aliases,
+            alias_families,
+        )
+        model_text_matches.update(product_line_matches)
+        vlm = VLM(
+            vlm_model=vlm_settings.get("vlm_model") or self.config.vlm.model_name,
+            vlm_endpoint=vlm_settings.get("vlm_endpoint") or self.config.vlm.server_url,
+            config=self.config,
+            prompts=self.prompts,
+        )
+        try:
+            judgments = await vlm.verify_candidates_async(
+                query_content=query,
+                candidates=verification_candidates,
+                question_text=question_text,
+                max_tokens=cfg.verification_max_tokens,
+                temperature=cfg.verification_temperature,
+                nrl_mode=self._is_nrl_mode,
+                query_understanding=query_understanding,
+            )
+        except APIError:
+            raise
+        except Exception as error:
+            raise APIError(
+                f"Multimodal verification failed: {error}",
+                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+            ) from error
+        return decide_multimodal_outcome(
+            judgments,
+            min_match_confidence=cfg.verification_min_match_confidence,
+            min_no_match_confidence=cfg.verification_min_no_match_confidence,
+            model_text_matches=model_text_matches,
+            product_line_matches=product_line_matches,
+        )
+
+    def _product_line_alias_eligibility(
+        self,
+        collection_name: str,
+        alias: str,
+        canonical: str,
+        vdb_op: VDBRag | None,
+    ) -> str | None:
+        """Return the sole corpus source family for an alias, or fail closed."""
+        cache = getattr(self, "_product_line_alias_cache", None)
+        if cache is None:
+            cache = self._product_line_alias_cache = {}
+        key = (collection_name, alias)
+        if key in cache:
+            return cache[key]
+        try:
+            connection = vdb_op._es_connection
+            response = connection.search(
+                index=collection_name,
+                body={
+                    "size": 0,
+                    "query": {"match_phrase": {"text": canonical}},
+                    "aggs": {
+                        "families": {
+                            "terms": {
+                                "field": "metadata.source.source_name.keyword",
+                                "size": 100,
+                            }
+                        }
+                    },
+                },
+            )
+            families = [
+                bucket.get("key")
+                for bucket in response.get("aggregations", {})
+                .get("families", {})
+                .get("buckets", [])
+                if bucket.get("key")
+            ]
+            verdict = families[0] if len(families) == 1 else None
+            if verdict is None:
+                logger.warning("Product-line alias %s is not globally unique", alias)
+        except Exception:
+            logger.warning("Product-line alias uniqueness query failed for %s", alias, exc_info=True)
+            verdict = None
+        cache[key] = verdict
+        return verdict
+
+    @staticmethod
+    def _is_page_image_document(document: Document) -> bool:
+        """Match the image metadata predicate used by legacy VLM assembly."""
+        metadata = getattr(document, "metadata", {}) or {}
+        if metadata.get("stored_image_uri"):
+            return True
+        content_metadata = metadata.get("content_metadata", {}) or {}
+        content_type = content_metadata.get("type")
+        if content_type in {"image", "structured", "chart", "table", "infographic"}:
+            return True
+        for key in ("image_uri", "source_location"):
+            if metadata.get(key):
+                return True
+        source = metadata.get("source")
+        return isinstance(source, dict) and bool(source.get("source_location"))
+
+    @staticmethod
+    def _document_page_identity(
+        document: Document,
+    ) -> tuple[str, int] | None:
+        """Read page identity from nv-ingest and NRL metadata layouts."""
+        metadata = getattr(document, "metadata", {}) or {}
+        content_metadata = metadata.get("content_metadata")
+        if not isinstance(content_metadata, dict):
+            content_metadata = {}
+        source = metadata.get("source")
+        if isinstance(source, dict):
+            source_name = source.get("source_name") or source.get("source_id")
+        else:
+            source_name = source or metadata.get("path") or metadata.get("filename")
+        page_number = content_metadata.get("page_number")
+        if page_number is None:
+            page_number = metadata.get("page_number")
+        if page_number is None:
+            page_number = content_metadata.get("page_num") or content_metadata.get("page")
+        if not isinstance(source_name, str) or not source_name or page_number is None:
+            return None
+        try:
+            return source_name, int(page_number)
+        except (TypeError, ValueError):
+            return None
+
+    def _multimodal_abstention_response(
+        self,
+        *,
+        model: str,
+        collection_name: str,
+        reason: str,
+        metrics: OtelMetrics | None,
+    ) -> RAGResponse:
+        """Return canonical streamed abstention text with no citations."""
+        text = (
+            "無法確認此圖片與所選知識庫中的項目相符，因為沒有足夠的匹配證據。"
+            "I cannot confirm a matching item in the selected knowledge base."
+        )
+        logger.info("Multimodal verification abstention: %s", reason)
+        return RAGResponse(
+            generate_answer_async(
+                _async_iter([text]),
+                [],
+                model=model,
+                collection_name=collection_name,
+                enable_citations=False,
+                otel_metrics_client=metrics,
+            ),
+            status_code=ErrorCodeMapping.SUCCESS,
+        )
+
+    @staticmethod
+    def _filter_context_to_verified_candidate(
+        decision: MultimodalVerificationDecision,
+        candidates: list[Document],
+        expanded_context: list[Document],
+    ) -> tuple[list[Document], list[Document]]:
+        """Keep only the selected candidate page in context and citations."""
+        if decision.selected_candidate is None:
+            return [], []
+        index = int(decision.selected_candidate.removeprefix("C")) - 1
+        if index < 0 or index >= len(candidates):
+            return [], []
+        selected = candidates[index]
+        identity = NvidiaRAG._document_page_identity(selected)
+        filtered = [
+            doc
+            for doc in expanded_context
+            if NvidiaRAG._document_page_identity(doc) == identity
+        ]
+        page_evidence = filtered or [selected]
+        return page_evidence, page_evidence
+
     @staticmethod
     def _count_images(content: Any) -> int:
         """Count structured image parts without inspecting their payloads."""
@@ -3239,6 +3490,7 @@ class NvidiaRAG:
                 )
 
             # Get relevant documents with optional reflection
+            multimodal_query_understanding: QueryUnderstanding | None = None
             if self.config.reflection.enable_reflection and is_image_query:
                 logger.info(
                     "Skipping text reflection for image query; using multimodal "
@@ -3517,8 +3769,7 @@ class NvidiaRAG:
                     retrieval_start_time = time.time()
                     if is_image_query:
                         if self.config.enable_multimodal_accuracy:
-                            context_to_show = (
-                                await self._dual_retrieval_for_image_query(
+                            multimodal_result = await self._dual_retrieval_for_image_query(
                                     query=query,
                                     retriever_query=retriever_query,
                                     chat_history=chat_history,
@@ -3532,6 +3783,9 @@ class NvidiaRAG:
                                     otel_ctx=otel_ctx,
                                     vlm_settings=vlm_settings,
                                 )
+                            context_to_show = multimodal_result.documents
+                            multimodal_query_understanding = (
+                                multimodal_result.query_understanding
                             )
                         else:
                             docs = vdb_op.retrieval_image_langchain(
@@ -3595,6 +3849,8 @@ class NvidiaRAG:
                 )
                 logger.info("-" * 80)
 
+            # Preserve fused identities before expansion; expansion supplies exact page evidence.
+            multimodal_candidates = list(context_to_show)
             # Snapshot for citations: only retrieved (and filtered) chunks, not expanded context.
             docs_for_citations = list(context_to_show)
 
@@ -3613,6 +3869,40 @@ class NvidiaRAG:
                     context_to_show, "After expansion (chunks per page)"
                 )
                 logger.info("-" * 80)
+
+            if (
+                self.config.enable_multimodal_accuracy
+                and self.config.multimodal_accuracy.enable_verification_gate
+                and is_image_query
+            ):
+                verification = await self._verify_multimodal_candidates(
+                    query=query,
+                    candidates=multimodal_candidates,
+                    expanded_context=context_to_show,
+                    question_text=self._extract_text_from_content(query),
+                    vlm_settings=vlm_settings or {},
+                    query_understanding=multimodal_query_understanding,
+                    collection_name=validated_collections[0]
+                    if validated_collections
+                    else "",
+                    vdb_op=vdb_op,
+                )
+                if verification.outcome != "verified":
+                    return self._multimodal_abstention_response(
+                        model=model or self.config.vlm.model_name,
+                        collection_name=(
+                            validated_collections[0] if validated_collections else ""
+                        ),
+                        reason=verification.abstention_reason,
+                        metrics=metrics,
+                    )
+                context_to_show, docs_for_citations = (
+                    self._filter_context_to_verified_candidate(
+                        verification,
+                        multimodal_candidates,
+                        context_to_show,
+                    )
+                )
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -4215,7 +4505,7 @@ class NvidiaRAG:
         filter_expr: str,
         otel_ctx: Any,
         vlm_settings: dict[str, Any] | None,
-    ) -> list[Document]:
+    ) -> MultimodalRetrievalResult:
         """Retrieve and fuse visual and text candidates for an image query."""
         cfg = self.config.multimodal_accuracy
         question_text = self._extract_text_from_content(query)
@@ -4335,7 +4625,7 @@ class NvidiaRAG:
             len(text_query),
         )
         self._log_retrieved_pages(fused_docs, "Fused multimodal page candidates")
-        return fused_docs
+        return MultimodalRetrievalResult(fused_docs, understanding)
 
     def _print_conversation_history(
         self,

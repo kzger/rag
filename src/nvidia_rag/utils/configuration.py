@@ -1338,6 +1338,41 @@ class MultimodalAccuracyConfig(_ConfigBase):
         env="MULTIMODAL_QUERY_UNDERSTANDING_TEMPERATURE",
         description="Sampling temperature for query understanding",
     )
+    enable_verification_gate: bool = Field(
+        default=False,
+        env="ENABLE_MULTIMODAL_VERIFICATION_GATE",
+        description="Verify image candidates before multimodal generation",
+    )
+    verification_max_candidates: int = Field(
+        default=2,
+        env="MULTIMODAL_VERIFICATION_MAX_CANDIDATES",
+        description="Maximum candidates sent to visual verification",
+    )
+    verification_min_match_confidence: float = Field(
+        default=0.80,
+        env="MULTIMODAL_VERIFICATION_MIN_MATCH_CONFIDENCE",
+        description="Minimum confidence for an identity match",
+    )
+    verification_min_no_match_confidence: float = Field(
+        default=0.80,
+        env="MULTIMODAL_VERIFICATION_MIN_NO_MATCH_CONFIDENCE",
+        description="Minimum confidence for a mismatch rejection",
+    )
+    verification_max_tokens: int = Field(
+        default=512,
+        env="MULTIMODAL_VERIFICATION_MAX_TOKENS",
+        description="Maximum tokens for visual verification",
+    )
+    verification_temperature: float = Field(
+        default=0.0,
+        env="MULTIMODAL_VERIFICATION_TEMPERATURE",
+        description="Sampling temperature for visual verification",
+    )
+    enable_abstention_prompt: bool = Field(
+        default=False,
+        env="ENABLE_MULTIMODAL_ABSTENTION_PROMPT",
+        description="Enable conditional identity abstention instructions",
+    )
 
     @field_validator(
         "visual_candidates",
@@ -1345,6 +1380,8 @@ class MultimodalAccuracyConfig(_ConfigBase):
         "max_candidates",
         "rrf_k",
         "query_understanding_max_tokens",
+        "verification_max_candidates",
+        "verification_max_tokens",
         mode="after",
     )
     @classmethod
@@ -1365,6 +1402,23 @@ class MultimodalAccuracyConfig(_ConfigBase):
     def validate_temperature(cls, value: float) -> float:
         if not 0.0 <= value <= 2.0:
             raise ValueError("must be between 0.0 and 2.0")
+        return value
+
+    @field_validator("verification_temperature", mode="after")
+    @classmethod
+    def validate_verification_temperature(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("must be between 0.0 and 1.0")
+        return value
+
+    @field_validator(
+        "verification_min_match_confidence", "verification_min_no_match_confidence",
+        mode="after",
+    )
+    @classmethod
+    def validate_verification_confidence(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("must be between 0.0 and 1.0")
         return value
 
 

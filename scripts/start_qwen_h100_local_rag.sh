@@ -5,7 +5,7 @@ repo_root=$(git rev-parse --show-toplevel)
 lifecycle="$repo_root/scripts/qwen_h100_local_rag.sh"
 timeout_seconds=${QWEN_START_TIMEOUT_SECONDS:-1800}
 poll_seconds=${QWEN_START_POLL_SECONDS:-10}
-skip_pull=${QWEN_SKIP_PULL:-0}
+skip_pull=${QWEN_SKIP_PULL:-1}
 
 if ! [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
   echo "QWEN_START_TIMEOUT_SECONDS must be a positive integer" >&2
