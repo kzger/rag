@@ -245,6 +245,41 @@ collections, objects, or model caches are required. After a Docker daemon or
 approved host restart, use `scripts/qwen_h100_local_rag.sh ps` and the health
 commands above to verify automatic recovery.
 
+## Query latency
+
+`ENABLE_FILTER_GENERATOR` and `ENABLE_AGENTIC_RAG` both default to `false` in this repo
+and in the Helm chart, and should stay that way on a single H100. Measured on
+`jorjin_glasses` with "提供J7EF Plus 的詳細規格":
+
+| configuration | wall time | retrievals returning zero documents |
+| --- | --- | --- |
+| both enabled | 52.1 s | 3 |
+| agentic only | 34.8 s | 0 |
+| neither | ~18 s | 0 |
+
+`ENABLE_FILTER_GENERATOR` asks an LLM to derive a metadata filter from the question
+without checking it against the values that exist in the index. For the query above it
+emitted `filename == "J7EF Plus"` while the indexed filename is
+`JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf`, so retrieval returned nothing.
+Self-reflection then spent every `MAX_REFLECTION_LOOP` round rewriting the *query*, which
+cannot repair a *filter*. Confirm with:
+
+```bash
+scripts/qwen_h100_local_rag.sh logs --since 5m rag-server \
+  | grep -E "Dynamic filter generated|Retrieved 0 documents"
+```
+
+`ENABLE_AGENTIC_RAG` splits the question into sub-tasks that each retrieve and reason.
+With `AGENTIC_CONCURRENCY_LIMIT=1` they serialise onto the single shared Qwen endpoint,
+so the cost adds up linearly for no measured quality gain — the non-agentic answer was
+equally complete and carried eight citations. Enable it per request with
+`{"agentic": true}` when multi-step reasoning is genuinely required.
+
+Reflection already exits early: `ReflectionCounter` stops as soon as the relevance score
+clears its threshold, and it did score 2 and stop immediately once retrieval returned
+documents. A loop that runs to its limit means retrieval is returning nothing — look there
+rather than adding an early-return path.
+
 ## Failure triage
 
 - Authentication or manifest errors: confirm the shell key and `nvcr.io`

@@ -109,14 +109,16 @@ overflow，因為 pipeline 可能用更多文件填滿剩餘空間。
 ### 2.3 放入 prompt 的 retrieval context
 
 retrieval 分成兩層 Top-K：`VECTOR_DB_TOPK` 決定先從 vector DB 取出的候選數，
-`APP_RETRIEVER_TOPK` 決定 reranker 後實際送進生成 prompt 的文件數。目前是
-`100 -> 4`。先前的 8K profile 曾實測：
+`APP_RETRIEVER_TOPK` 決定 reranker 後實際送進生成 prompt 的文件數。目前
+`deploy/compose/.env` 設為 `5`，即 `100 -> 5`；Compose override 的 fallback 仍是
+`4`，只在未載入 canonical `.env` 時生效。先前的 8K profile 曾實測：
 
 - `APP_RETRIEVER_TOPK=5`：目前驗證文件會超過 8192 tokens。
 - `APP_RETRIEVER_TOPK=4`：成功。
 
-32K profile 仍保留 `APP_RETRIEVER_TOPK=4` 作為單卡共置的保守上限；只有在
-文件特性、GPU 記憶體與完整驗收均重新測試後才能提高。
+該限制是針對 8K profile；32K profile 的 context 較寬裕，因此 `.env` 現行值為 `5`，
+而 Compose fallback 保留 `4` 作為未載入 `.env` 時的保守上限。要再往上調，仍須重新
+測試文件特性、GPU 記憶體與完整驗收。
 
 ## 3. 重要檔案與參數
 
@@ -128,8 +130,8 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 | vLLM 可使用的 GPU 比例 | `QWEN_GPU_MEMORY_UTILIZATION` | `0.48` | Qwen |
 | 標準 RAG 最大輸出 | `LLM_MAX_TOKENS` | `8192` | RAG |
 | VLM 最大輸出 | `APP_VLM_MAX_TOKENS` | `8192` | RAG |
-| VLM 每次最多圖片 | `APP_VLM_MAX_TOTAL_IMAGES` | `2` | RAG |
-| Reranker 後送進 prompt 的文件數 | `APP_RETRIEVER_TOPK` | `4` | RAG |
+| VLM 每次最多圖片 | `APP_VLM_MAX_TOTAL_IMAGES` | `3` | RAG |
+| Reranker 後送進 prompt 的文件數 | `APP_RETRIEVER_TOPK` | `5` | RAG |
 | 從 vector DB 取出、送往 reranker 的候選數 | `VECTOR_DB_TOPK` | `100` | RAG |
 | 保留的對話歷史輪數 | `CONVERSATION_HISTORY` | `5` | RAG |
 | Query decomposition 深度 | `MAX_RECURSION_DEPTH` | `3` | RAG |
@@ -137,6 +139,12 @@ Docker 部署的主要設定來源是 `deploy/compose/.env`。不要只在 shell
 | Agentic context budget | `AGENTIC_CONTEXT_MAX_TOKENS` | `4096` | RAG |
 | Agentic 各角色最大輸出 | `AGENTIC_*_LLM_MAX_TOKENS` | `1024` | RAG |
 | 摘要輸入 chunk | `SUMMARY_LLM_MAX_CHUNK_LENGTH` | `6144` | Ingestor |
+| 動態 metadata 過濾器 | `ENABLE_FILTER_GENERATOR` | `false` | RAG |
+| Agentic 多步推理（預設關閉，可 per-request 開啟） | `ENABLE_AGENTIC_RAG` | `false` | RAG |
+
+`ENABLE_FILTER_GENERATOR` 與 `ENABLE_AGENTIC_RAG` 兩者的 repo 與 Helm 預設都是
+`false`，且應維持關閉：前者會產生對不上實際欄位值的過濾條件而導致檢索回 0 筆，
+後者在單張 H100 上會讓同一個問題從約 18 秒變成約 52 秒。詳見第 10.7 節的實測數據。
 
 兩個 Top-K 都必須明確寫在 `deploy/compose/.env`，讓該檔保持唯一的本機設定
 來源。Compose override 位於 `deploy/compose/docker-compose-qwen-h100.yaml`；
@@ -630,6 +638,61 @@ ss -ltnp | grep -E ':(8090|8081|8082|8999) '
 ### 10.6 Image pull authentication 失敗
 
 重新確認 NGC key 是否存在並執行 `docker login nvcr.io`。禁止把 key 貼到 ticket 或 logs。
+
+### 10.7 查詢很慢（單題 30 秒以上）
+
+先確認這兩個旗標。它們在 repo 與 Helm 的預設都是 `false`，若被 `.env` 開成 `true`，
+單題會從約 18 秒變成約 52 秒。
+
+```bash
+docker exec rag-server printenv ENABLE_FILTER_GENERATOR ENABLE_AGENTIC_RAG
+```
+
+**`ENABLE_FILTER_GENERATOR`：預設 `false`，建議維持關閉。**
+
+它會先叫一次 LLM，從使用者的問題「推導」出 metadata 過濾條件。問題是這個推導沒有
+對照實際存在的欄位值。實測「提供 J7EF Plus 的詳細規格」時，它產生了：
+
+```json
+[{"term":{"metadata.content_metadata.filename.keyword":"J7EF Plus"}}]
+```
+
+但知識庫裡的檔名是 `JORJIN TECHNOLOGIES-J7EF PULS 產品規格_v3.pdf`，完全對不上，
+於是**檢索回 0 筆**。接著 self-reflection 會判定 context 不相關、改寫查詢、再檢索——
+但它改寫的是「查詢」，修不了「過濾器」，所以 `MAX_REFLECTION_LOOP` 三輪全部白跑。
+
+可用以下方式確認是否踩到：
+
+```bash
+scripts/qwen_h100_local_rag.sh logs --since 5m rag-server | grep -E "Dynamic filter generated|Retrieved 0 documents"
+```
+
+看到 `Retrieved 0 documents` 緊接在 `Dynamic filter generated` 之後，就是這個原因。
+
+**`ENABLE_AGENTIC_RAG`：預設 `false`，建議維持關閉，需要時改用 per-request 開啟。**
+
+Agentic 會把問題拆成多個子任務，各自檢索與推理。實測同一個問題：
+
+| 模式 | 耗時 | 答案 |
+| --- | --- | --- |
+| Agentic | 52.1 秒 | 完整 |
+| 非 Agentic | 17.7 秒 | 一樣完整，另附 8 筆引用 |
+
+在單張 H100 上所有子任務共用同一個 Qwen，且 `AGENTIC_CONCURRENCY_LIMIT=1` 讓它們
+只能排隊執行，所以成本是線性疊加的。需要多步推理時，在單一請求裡指定即可：
+
+```json
+{"messages": [...], "agentic": true}
+```
+
+兩者都關閉後，同一題從 52.1 秒降到約 18 秒。
+
+### 10.8 不需要新增「提早返回」機制
+
+若懷疑 self-reflection 一直在空轉，先確認它是不是拿不到文件。跳出機制本來就存在：
+`ReflectionCounter` 在 relevance 分數達標時就會結束迴圈，實測一旦檢索拿到文件，
+分數立刻是 2 並跳出。所以看到迴圈跑滿三輪時，要查的是**檢索為什麼回 0 筆**
+（通常就是上面的假過濾器），而不是去加提早返回的邏輯。
 
 ## 11. 回復修改
 
