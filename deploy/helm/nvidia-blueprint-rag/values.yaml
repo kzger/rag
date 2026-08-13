@@ -159,7 +159,6 @@ envVars:
 
   # vectorstore collection name to store embeddings
   COLLECTION_NAME: "multimodal_data"
-  APP_RETRIEVER_SCORETHRESHOLD: "0.25"
   # Top K from vector DB, which goes as input to reranker model - not applicable if ENABLE_RERANKER is set to False
   VECTOR_DB_TOPK: "100"
   # Number of document chunks to insert in LLM prompt

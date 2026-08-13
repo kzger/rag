@@ -831,21 +831,6 @@ class RetrieverConfig(_ConfigBase):
         env="VECTOR_DB_TOPK",
         description="Number of documents to retrieve from vector database before reranking",
     )
-    score_threshold: float = Field(
-        default=0.25,
-        env="APP_RETRIEVER_SCORETHRESHOLD",
-        description="Minimum similarity score threshold for retrieved documents",
-    )
-    nr_url: str = Field(
-        default="http://retrieval-ms:8000",
-        env="APP_RETRIEVER_NRURL",
-        description="URL for NVIDIA Retrieval microservice",
-    )
-    nr_pipeline: str = Field(
-        default="ranked_hybrid",
-        env="APP_RETRIEVER_NRPIPELINE",
-        description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
-    )
     fetch_full_page_context: bool = Field(
         default=False,
         env="APP_FETCH_FULL_PAGE_CONTEXT",
@@ -858,16 +843,6 @@ class RetrieverConfig(_ConfigBase):
         description="N pages before/after each retrieved page (0=disabled, 1=+/-1 page). "
         "Requires fetch_full_page_context=True.",
     )
-
-    @field_validator("nr_url", mode="before")
-    @classmethod
-    def normalize_url(cls, v: Any) -> Any:
-        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
-        if isinstance(v, str):
-            v = v.strip().strip('"').strip("'")
-            if v and not v.startswith(("http://", "https://")):
-                return f"http://{v}"
-        return v
 
     @field_validator("vdb_top_k")
     @classmethod

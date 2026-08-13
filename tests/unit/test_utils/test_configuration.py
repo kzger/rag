@@ -229,9 +229,6 @@ class TestRetrieverConfig:
 
         assert config.top_k == 10
         assert config.vdb_top_k == 100
-        assert config.score_threshold == 0.25
-        assert config.nr_url == "http://retrieval-ms:8000"
-        assert config.nr_pipeline == "ranked_hybrid"
         assert config.fetch_full_page_context is False
         assert config.fetch_neighboring_pages == 0
 
@@ -947,11 +944,6 @@ class TestRankingConfigNormalize:
 
 class TestRetrieverConfigValidation:
     """Test cases for RetrieverConfig validation methods."""
-
-    def test_normalize_url_adds_http_prefix(self):
-        """Test that normalize_url adds http:// prefix when missing."""
-        config = RetrieverConfig(nr_url="example.com:8080")
-        assert config.nr_url == "http://example.com:8080"
 
     def test_validate_vdb_top_k_zero_raises_error(self):
         """Test that vdb_top_k <= 0 raises ValueError."""

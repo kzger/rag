@@ -470,7 +470,6 @@ services:
       
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
-      APP_RETRIEVER_SCORETHRESHOLD: 0.25
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
 
