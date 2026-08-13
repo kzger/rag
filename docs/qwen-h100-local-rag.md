@@ -275,6 +275,16 @@ so the cost adds up linearly for no measured quality gain — the non-agentic an
 equally complete and carried eight citations. Enable it per request with
 `{"agentic": true}` when multi-step reasoning is genuinely required.
 
+`ENABLE_QUERY_DECOMPOSITION` also defaults to `false` and should stay there. It splits one
+question into sub-questions, each costing an LLM call and a full retrieval. On the follow-up
+"介紹這個產品" it took 30.5 s against 8.5 s disabled, and the longer run returned a *shorter*
+answer (782 vs 937 characters) because it widened the question into sub-queries about other
+product lines, launch dates, pricing and competitor comparisons that were never asked.
+
+Keep `ENABLE_QUERYREWRITER` enabled: it is the step that resolves follow-up pronouns, and it
+correctly rewrote that question to "請介紹 JReality J7EF Plus …" before decomposition widened
+it. `CONVERSATION_HISTORY` (5 here, default 0) is likewise required for follow-ups.
+
 Reflection already exits early: `ReflectionCounter` stops as soon as the relevance score
 clears its threshold, and it did score 2 and stop immediately once retrieval returned
 documents. A loop that runs to its limit means retrieval is returning nothing — look there
