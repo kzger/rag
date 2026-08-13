@@ -207,3 +207,46 @@ disclaimer are all correct. What follows is what the review changed or disputes.
   asserted as substrings, so nothing would have caught the two stages reporting one shared
   duration. The new test makes the visual path measurably slower and asserts the reported
   values differ.
+
+## Regression: page images vanished from citations (2026-08-13)
+
+Reported from the WebUI: citation sources used to carry image data (base64) and stopped.
+Reproduced on `/v1/generate` with the gate on — 1 citation, no image — against 5 citations
+with 2 images when the gate is off, and 25 with images on the agentic path.
+
+Cause: fusion's `dedupe_by_page` keeps one chunk per page, and the verification gate then
+narrows citations to the single verified page. J7EF page 3 has four chunks (text, structured,
+two images) but only its text chunk survived both steps. The code comment at the snapshot
+site — "expansion supplies exact page evidence" — assumed page expansion would restore the
+rest, but `fetch_full_page_context` defaults to False and `APP_FETCH_FULL_PAGE_CONTEXT` was
+not forwarded by Compose at all, so expansion never ran. That is the same plumbing gap as the
+multimodal tunables, third occurrence.
+
+Fixed by expanding the verified page **into the citation snapshot only**, after the gate has
+decided. Two earlier attempts were measured and rejected:
+
+| attempt | where expansion ran | images | rejection leak | identification |
+| --- | --- | --- | --- | --- |
+| baseline | nowhere | none | 0.000 | 0.750 |
+| enable globally | before verification | yes | **0.200** | 0.750 |
+| expand model context | after verification | yes | 0.000 | **0.500** |
+| **citations only** | after verification | **yes** | **0.000** | **0.750** |
+
+Enabling expansion globally let the verifier see a Q&A table and match the query image's OCR
+fragment `J10` against the `J10A` entry, verifying the deliberately ambiguous logo case that
+must abstain — it also used query-understanding OCR as identity evidence, which issue 04 item 2
+forbids. Feeding the expansion to the model instead changed `j7ef-pronoun-confirmation` into a
+denial. The pipeline is sensitive to *who sees what, when*: the verifier's input governs the
+rejection guarantee and the model's input governs identification, so neither may move.
+
+`APP_FETCH_FULL_PAGE_CONTEXT` is now forwarded by Compose and Helm, still defaulting to False.
+Operators who enable it globally get the pre-verification behaviour and should expect the
+ambiguity regression above.
+
+**Noise figure worth recording:** `j7ef-pronoun-confirmation` flips between passing and
+answering 「不是同一個產品」 at `APP_VLM_TEMPERATURE=0.6`. Three runs of the final fix gave
+identification 0.500, 0.750, 0.750 with the metric moving only through that one case.
+Identification therefore carries ±0.25 of run-to-run variance on this nine-case set; confirm any
+apparent identification change with a repeat run before believing it.
+
+Pinned by `test_verified_citations_expand_page_without_changing_model_context`.

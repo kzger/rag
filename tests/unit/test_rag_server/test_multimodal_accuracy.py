@@ -1049,3 +1049,74 @@ async def test_visual_and_text_retrieval_are_timed_independently(
         visual > text
     ), f"visual={visual} text={text} — paths are not timed separately"
     assert visual >= 80.0
+
+
+@pytest.mark.asyncio
+async def test_verified_citations_expand_page_without_changing_model_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The verified page's other chunks reach citations but never the model.
+
+    Fusion keeps one chunk per page, so without this the page's images are dropped
+    from citations. Expanding the model's context instead was measured to change the
+    answer, and expanding before verification was measured to break the gate.
+    """
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    monkeypatch.setenv("ENABLE_MULTIMODAL_VERIFICATION_GATE", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("J7EF.pdf", 3, "J7EF text chunk")]
+    vdb.text_result = [page_doc("J7EF.pdf", 3, "J7EF text chunk")]
+    rag = NvidiaRAG()
+    rag.config.multimodal_accuracy.enable_verification_gate = True
+    configure_vdb(monkeypatch, vdb)
+
+    page_image_chunk = page_doc("J7EF.pdf", 3, "J7EF page image chunk")
+    expansion_inputs: list[list[Document]] = []
+
+    def fake_expand(
+        self: object, docs: list[Document], **kwargs: object
+    ) -> list[Document]:
+        expansion_inputs.append(list(docs))
+        return [*docs, page_image_chunk]
+
+    monkeypatch.setattr(NvidiaRAG, "_expand_and_organize_context", fake_expand)
+    stream_kwargs: dict[str, object] = {}
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        stream_kwargs.update(kwargs)
+        yield "verified"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(
+            return_value=QueryUnderstanding(model="J7EF")
+        )
+        vlm.verify_candidates_async = AsyncMock(
+            return_value=[
+                CandidateVerification(
+                    "C1",
+                    "match",
+                    0.95,
+                    "exact_visible_text",
+                    supporting_evidence="visible J7EF model token",
+                    resolved_identity="J7EF",
+                )
+            ]
+        )
+        vlm.stream_with_messages = stream
+        await rag.generate(
+            messages=multimodal_messages(),
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_reranker=False,
+            enable_vlm_inference=True,
+            vlm_max_total_images=2,
+        )
+
+    # Expansion ran exactly once, after verification, on the citation snapshot only.
+    assert len(expansion_inputs) == 1
+    model_docs = stream_kwargs["docs"]
+    assert (
+        page_image_chunk not in model_docs
+    ), "expanded page chunks must not reach the model: doing so changed the answer"
+    assert len(model_docs) == 1

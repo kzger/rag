@@ -4017,6 +4017,18 @@ class NvidiaRAG:
                     multimodal_candidates,
                     context_to_show,
                 )
+                # Fusion keeps one chunk per page, so the verified page is represented by
+                # a single chunk and its page images would never reach citations. Expand
+                # citations only: expanding before verification changes what the verifier
+                # compares against, and feeding the expansion to the model changes the
+                # answer. Both were measured to break cases the gate is calibrated on.
+                if docs_for_citations and not fetch_full_page_context:
+                    docs_for_citations = self._expand_and_organize_context(
+                        docs=docs_for_citations,
+                        vdb_op=vdb_op,
+                        fetch_full_page_context=True,
+                        fetch_neighboring_pages=0,
+                    )
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided

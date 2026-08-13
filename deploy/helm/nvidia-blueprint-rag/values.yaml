@@ -164,6 +164,9 @@ envVars:
   VECTOR_DB_TOPK: "100"
   # Number of document chunks to insert in LLM prompt
   APP_RETRIEVER_TOPK: "10"
+  # Fetch every chunk of a retrieved page and organize context by page. Required for
+  # the verification gate to cite a page's images.
+  APP_FETCH_FULL_PAGE_CONTEXT: "False"
 
   ##===LLM Model specific configurations===
   APP_LLM_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
