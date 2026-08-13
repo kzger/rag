@@ -102,7 +102,7 @@ a gate failure — see issue 05.
 - Sanitized evidence: `docs/research/evidence/ticket-07-rollout-2026-08-12.json`.
 - Quality: Hit@K 1.0, identification 0.75, unsupported 0.1111111111111111, rejection
   precision/recall 1.0/1.0, citation leak 0. Retrieval P50/P95 is
-  0.6469595612/1.2901993137 s; TTFT is 6.9289864402/9.2033017920 s; total is
+  0.5203830269/1.3735369775 s; TTFT is 7.0797253258/8.8739999841 s; total is
   7.0798874989/11.1864175330 s. The lexical evaluator metric identifies 4 cases, passes
   3, and therefore reports 0.75.
   Its sole lexical miss is `j10a-similar-model-disambiguation`: expected source pages 1/2
@@ -141,3 +141,69 @@ a gate failure — see issue 05.
   remains unchecked for the missing RAG Docker health probe; item 6 and item 8 are checked;
   item 7 remains unchecked because HTTP/stream success does not establish semantic text or
   ingestion correctness.
+
+## Code review findings (2026-08-13)
+
+Two-axis review of `819259a`. The self-reporting was accurate and candid overall — `status:
+partial`, the worktree caveat and the "WebUI-equivalent, not literal browser automation"
+disclaimer are all correct. What follows is what the review changed or disputes.
+
+### Corrected
+
+- **The rollout bullet quoted latency figures that contradict its own evidence.** It recorded
+  retrieval P50/P95 `0.6469/1.2902` and TTFT `6.9290/9.2033`, while both
+  `ticket-07-rollout-2026-08-12.json` and `ticket-07-multimodal-rollout-raw-2026-08-12.json`
+  report `0.5204/1.3735` and `7.0797/8.8740` for that same run. The `total` figures had been
+  updated but retrieval and TTFT were left from a superseded run. Corrected to match the
+  artifacts.
+
+### Still open — do not treat these as done
+
+- **Item 5 is not five *continuous* minutes.** `ticket-07-co-residency-raw` holds 21 samples
+  at ~15.2 s intervals from 0.1 s to **288.7 s** (4.81 min), then a **119.7 s unobserved gap**
+  to a single final sample at 408.4 s. Concurrency and restart-count-0 are genuine, but the
+  five-minute threshold is only crossed by one datapoint after a two-minute hole. Either
+  sample continuously past 300 s or restate the claim as "4.8 minutes densely sampled plus a
+  later confirmation". `rag-server` also reports `health: null` (no probe configured).
+- **Item 7 is unmet, not partial.** No text-only query or ingestion *correctness* regression
+  was run — only HTTP/stream success and the unit suite. The item asks for confirmation that
+  the rollout did not change existing behaviour, which needs a before/after comparison.
+- **Item 1's consistency claim is asserted, not captured.** The settings artifact carries
+  `"provenance": "explicit-file-complete"`, i.e. a hand-supplied JSON handed to the evaluator,
+  not a capture of `docker exec rag-server env`. The forwarding itself is real (all 14 tunables
+  are in `docker-compose-rag-server.yaml`), but source-of-truth-equals-container was never
+  demonstrated. Capture the container environment directly.
+- **Item 3 exercised 2 of 4 sub-cases.** No-collection and no-match image are covered.
+  "Consecutive different images" was represented by the single-turn
+  `consecutive-image-isolation-baseline` case rather than a real two-turn run, and downstream
+  failure injection is recorded as `"unestablished"`.
+- **Item 4's base64/secrets clause** was retracted rather than met; the stage timings and
+  generation latency halves are genuinely closed.
+
+### Reviewed and disputed
+
+- A review pass flagged item 6's OOM evidence as "a single post-hoc grep with no time window".
+  Re-examined: `ticket-07-oom-scan-raw` greps each container's **entire** log — no `--since` —
+  for four terms across seven containers, all zero matches. Unbounded coverage is *broader*
+  than the validation window, not narrower, and it is corroborated by restart count 0 and all
+  containers healthy. **Item 6's tick stands.** The residual weakness is only that log-string
+  matching would miss an OOM that never printed one of those four terms.
+
+### Code fixes applied
+
+- `_GenerationLatencyStream._finish` caught `BaseException` around the upstream close and
+  swallowed it into a warning, so a `CancelledError` raised *by the close itself* was
+  downgraded and cancellation stopped propagating. Narrowed to `Exception`.
+- The "close if callable, await if awaitable" idiom existed in four places using two different
+  awaitable checks (`inspect.isawaitable` vs `hasattr(__await__)`). Extracted
+  `response_generator.await_close` and routed all four through it.
+- `test_public_multimodal_generate_logs_sanitized_latency_stages` faked the clock with
+  `iter([100.0] * 11 + [100.025])`, where `11` silently encoded how many `perf_counter` calls
+  the pipeline makes; adding a stage timing would have moved the 25 ms delta onto a different
+  measurement. That test now uses a frozen clock and asserts the log shape and sanitization,
+  while a new direct test of `_GenerationLatencyStream` pins the elapsed value and single-fire
+  behaviour.
+- Added `test_visual_and_text_retrieval_are_timed_independently`: the split timings were only
+  asserted as substrings, so nothing would have caught the two stages reporting one shared
+  duration. The new test makes the visual path measurably slower and asserts the reported
+  values differ.

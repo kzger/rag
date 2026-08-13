@@ -82,6 +82,7 @@ from nvidia_rag.rag_server.response_generator import (
     Citations,
     ErrorCodeMapping,
     RAGResponse,
+    await_close,
     configure_object_store_operator,
     generate_answer_async,
     prepare_citations,
@@ -173,20 +174,18 @@ class _GenerationLatencyStream:
             return
         self._finished = True
         terminal_status = status
-        close = getattr(self._stream, "aclose", None)
-        if callable(close):
-            try:
-                result = close()
-                if hasattr(result, "__await__"):
-                    await result
-            except BaseException as error:
-                # Never replace the stream exception or cancellation with a close error.
-                terminal_status = "error" if status == "completed" else status
-                logger.warning(
-                    "Generation stream close failed: status=%s error_type=%s",
-                    terminal_status,
-                    type(error).__name__,
-                )
+        try:
+            await await_close(self._stream)
+        except Exception as error:
+            # Never replace the stream exception with a close error. Cancellation is
+            # deliberately not caught here: a CancelledError raised by the close itself
+            # must propagate rather than be downgraded to a warning.
+            terminal_status = "error" if status == "completed" else status
+            logger.warning(
+                "Generation stream close failed: status=%s error_type=%s",
+                terminal_status,
+                type(error).__name__,
+            )
         logger.info(
             "Generation latency: status=%s elapsed_ms=%.1f",
             terminal_status,
@@ -402,11 +401,7 @@ class NvidiaRAG:
                     async for chunk in stream_gen:
                         yield chunk
                 finally:
-                    close = getattr(stream_gen, "aclose", None)
-                    if callable(close):
-                        result = close()
-                        if hasattr(result, "__await__"):
-                            await result
+                    await await_close(stream_gen)
 
             return complete_stream()
         except StopAsyncIteration:
@@ -2176,9 +2171,7 @@ class NvidiaRAG:
                     if source_closed:
                         return
                     source_closed = True
-                    close = getattr(vlm_generator, "aclose", None)
-                    if callable(close):
-                        await close()
+                    await await_close(vlm_generator)
 
                 source_close_callback = close_source_once
 
@@ -4194,11 +4187,7 @@ class NvidiaRAG:
                             # Close the already-started latency wrapper directly. The
                             # prefetched stream may never be iterated, so its async
                             # generator finalizer is not sufficient for ownership.
-                            close = getattr(vlm_generator, "aclose", None)
-                            if callable(close):
-                                result = close()
-                                if hasattr(result, "__await__"):
-                                    await result
+                            await await_close(vlm_generator)
 
                         logger.info(
                             "VLM stream initiated successfully (first chunk received)"

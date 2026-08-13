@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -492,12 +493,10 @@ async def test_public_multimodal_generate_logs_sanitized_latency_stages(
     vdb.text_result = [page_doc("text.pdf", 2, "text")]
     rag = NvidiaRAG()
     configure_vdb(monkeypatch, vdb)
-    perf_counter_values = iter([100.0] * 11 + [100.025])
-    monkeypatch.setattr(
-        main.time,
-        "perf_counter",
-        lambda: next(perf_counter_values, 100.025),
-    )
+    # Frozen clock: this test pins the log *shape* and its sanitization. The elapsed
+    # value itself is asserted directly against _GenerationLatencyStream below, so it
+    # does not have to depend on how many perf_counter calls the pipeline happens to make.
+    monkeypatch.setattr(main.time, "perf_counter", lambda: 100.0)
 
     async def stream(**kwargs: object) -> AsyncIterator[str]:
         yield "safe answer"
@@ -531,7 +530,6 @@ async def test_public_multimodal_generate_logs_sanitized_latency_stages(
     )
     assert "Generation latency: status=completed" in caplog.text
     assert generation_latency is not None
-    assert float(generation_latency.group("latency")) == pytest.approx(25.0)
     assert "data:image" not in caplog.text
     assert "j7ef-current" not in caplog.text
     assert "safe answer" not in caplog.text
@@ -977,3 +975,77 @@ async def test_public_generate_verification_service_error_keeps_error_contract(
         )
 
     assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_generation_latency_stream_reports_elapsed_time(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Elapsed time spans construction to termination, and is logged exactly once."""
+    clock = iter([100.0, 100.025, 100.999])
+    monkeypatch.setattr(main.time, "perf_counter", lambda: next(clock, 100.999))
+
+    class Upstream:
+        def __init__(self) -> None:
+            self.closed = 0
+
+        def __aiter__(self) -> "Upstream":
+            return self
+
+        async def __anext__(self) -> str:
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            self.closed += 1
+
+    upstream = Upstream()
+    stream = main._GenerationLatencyStream(upstream)
+
+    with caplog.at_level("INFO"):
+        async for _ in stream:
+            pass
+        # A close after natural exhaustion must not log or close a second time.
+        await stream.aclose()
+
+    assert caplog.text.count("Generation latency:") == 1
+    assert "status=completed elapsed_ms=25.0" in caplog.text
+    assert upstream.closed == 1
+
+
+@pytest.mark.asyncio
+async def test_visual_and_text_retrieval_are_timed_independently(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The two retrieval paths report their own durations, not a shared total."""
+    monkeypatch.setenv("ENABLE_MULTIMODAL_ACCURACY", "true")
+    vdb = RecordingVDB()
+    vdb.visual_result = [page_doc("visual.pdf", 1, "visual")]
+    vdb.text_result = [page_doc("text.pdf", 2, "text")]
+
+    # Make the visual path measurably slower than the text path.
+    original_visual = vdb.retrieval_image_langchain
+
+    def slow_visual(*args: object, **kwargs: object) -> list[Document]:
+        time.sleep(0.08)
+        return original_visual(*args, **kwargs)
+
+    monkeypatch.setattr(vdb, "retrieval_image_langchain", slow_visual)
+    rag = NvidiaRAG()
+    configure_vdb(monkeypatch, vdb)
+
+    async def stream(**kwargs: object) -> AsyncIterator[str]:
+        yield "answer"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as vlm_class:
+        vlm = vlm_class.return_value
+        vlm.understand_query_async = AsyncMock(return_value=None)
+        vlm.stream_with_messages = stream
+        with caplog.at_level("INFO"):
+            await generate_multimodal(rag)
+
+    visual = float(re.search(r"visual_retrieval_ms=([0-9.]+)", caplog.text).group(1))
+    text = float(re.search(r"text_retrieval_ms=([0-9.]+)", caplog.text).group(1))
+    assert (
+        visual > text
+    ), f"visual={visual} text={text} — paths are not timed separately"
+    assert visual >= 80.0

@@ -97,6 +97,20 @@ class RAGResponse:
 CloseCallback = Callable[[], Awaitable[None] | None]
 
 
+async def await_close(source: Any) -> None:
+    """Close ``source`` if it exposes ``aclose``, awaiting the result when needed.
+
+    Stream owners release their upstream in several places, and the check has to
+    tolerate both coroutine and plain-callable ``aclose`` implementations.
+    """
+    close = getattr(source, "aclose", None)
+    if not callable(close):
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
+
+
 class _OwnedAsyncStream:
     """Async stream whose owner can close the source before iteration starts.
 
@@ -124,11 +138,7 @@ class _OwnedAsyncStream:
         if self._closed:
             return
         self._closed = True
-        close_stream = getattr(self._stream, "aclose", None)
-        if callable(close_stream):
-            result = close_stream()
-            if inspect.isawaitable(result):
-                await result
+        await await_close(self._stream)
         if callable(self._close_callback):
             result = self._close_callback()
             if inspect.isawaitable(result):
@@ -945,14 +955,10 @@ async def _generate_answer_async(
         async for msg in error_response_generator_async(FALLBACK_EXCEPTION_MSG):
             yield msg
     finally:
-        close = getattr(generator, "aclose", None)
-        if callable(close):
-            try:
-                result = close()
-                if hasattr(result, "__await__"):
-                    await result
-            except Exception as error:
-                logger.debug("Failed to close response source stream: %s", error)
+        try:
+            await await_close(generator)
+        except Exception as error:
+            logger.debug("Failed to close response source stream: %s", error)
 
 
 def generate_answer_async(
