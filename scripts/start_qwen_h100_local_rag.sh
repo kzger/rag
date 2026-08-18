@@ -41,10 +41,14 @@ cd "$repo_root"
 if [[ "$skip_pull" == "0" ]]; then
   "$lifecycle" pull
 fi
-"$lifecycle" up "$@"
 
 deadline=$((SECONDS + timeout_seconds))
+echo "Starting Qwen before the dependent RAG services..."
+"$lifecycle" up qwen-vllm
 wait_for_url "Qwen" "http://127.0.0.1:8999/v1/models" "$deadline"
+
+echo "Qwen is ready; starting the complete RAG stack..."
+"$lifecycle" up "$@"
 wait_for_url \
   "RAG server" \
   "http://127.0.0.1:8081/v1/health?check_dependencies=true" \

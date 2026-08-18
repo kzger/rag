@@ -36,6 +36,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import requests
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.runnables import RunnableAssign
@@ -187,6 +188,75 @@ async def check_context_relevance(
         - Employs structured prompts with system and human message pairs for both
           relevance checking and query rewriting
     """
+    if "data:image/" in retriever_query.lower():
+        logger.info(
+            "Skipping text reflection for image query; using multimodal retrieval "
+            "with configured reranking."
+        )
+        otel_ctx = otel_context.get_current()
+        documents = []
+        for collection_name in collection_names:
+            filter_expr = (
+                collection_filter_mapping.get(collection_name, "")
+                if isinstance(collection_filter_mapping, dict)
+                else collection_filter_mapping
+            )
+            documents.extend(
+                vdb_op.retrieval_langchain(
+                    query=retriever_query,
+                    collection_name=collection_name,
+                    vectorstore=vdb_op.get_langchain_vectorstore(collection_name),
+                    top_k=top_k,
+                    filter_expr=filter_expr,
+                    otel_ctx=otel_ctx,
+                )
+            )
+        if ranker and enable_reranker:
+            context_reranker = RunnableAssign(
+                {
+                    "context": lambda input: ranker.compress_documents(
+                        query=input["question"], documents=input["context"]
+                    )
+                }
+            )
+            try:
+                try:
+                    reranked = await context_reranker.ainvoke(
+                        {"context": documents, "question": retriever_query},
+                        config={"run_name": "context_reranker"},
+                    )
+                except (OSError, requests.exceptions.HTTPError) as error:
+                    error_text = str(error).lower()
+                    response = getattr(error, "response", None)
+                    is_unprocessable = (
+                        isinstance(error, requests.exceptions.HTTPError)
+                        and response is not None
+                        and response.status_code == 422
+                    )
+                    text_query = retriever_query.split("data:image/", 1)[0].strip()
+                    if (
+                        not is_unprocessable
+                        and (
+                            "input length" not in error_text
+                            or "maximum allowed token size" not in error_text
+                        )
+                        or not text_query
+                    ):
+                        raise
+                    logger.warning(
+                        "Image reranking exceeded the model token limit; retrying "
+                        "reranking with the text portion of the multimodal query."
+                    )
+                    release_nvidia_client_response(ranker)
+                    reranked = await context_reranker.ainvoke(
+                        {"context": documents, "question": text_query},
+                        config={"run_name": "context_reranker_text_fallback"},
+                    )
+                documents = reranked.get("context", [])
+            finally:
+                release_nvidia_client_response(ranker)
+        return documents, True
+
     if config is None:
         config = NvidiaRAGConfig()
 

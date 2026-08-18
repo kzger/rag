@@ -191,7 +191,7 @@ curl -fsS -X POST http://127.0.0.1:8082/v1/documents \
   -F "data={\"collection_name\":\"$collection\",\"blocking\":true,\"generate_summary\":true};type=application/json"
 curl -fsS -X POST http://127.0.0.1:8999/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  --data '{"model":"Qwen/Qwen3.6-27B-FP8","messages":[{"role":"user","content":"In one short sentence, explain why OCR helps multimodal retrieval."}],"max_tokens":48,"temperature":0}'
+  --data '{"model":"Qwen/Qwen3.8-27B-FP8","messages":[{"role":"user","content":"In one short sentence, explain why OCR helps multimodal retrieval."}],"max_tokens":48,"temperature":0}'
 curl -fsS -X POST \
   "http://127.0.0.1:8081/v2/vector_stores/$collection/search" \
   -H 'Content-Type: application/json' \

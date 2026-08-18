@@ -30,10 +30,10 @@ Key Testing Areas:
 """
 
 import pytest
+import requests
 from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
-
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
     _reflection_llm_params,
@@ -238,6 +238,99 @@ async def test_check_context_relevance(mocker):
 
         # Verify the returned documents match expected results
         assert docs == tc_data["expected_docs"]
+
+
+@pytest.mark.asyncio
+async def test_image_query_skips_text_reflection_and_query_rewriting(mocker):
+    """Image candidates are reranked without calling the text reflection LLM."""
+    candidates = [Document(page_content=f"candidate-{index}") for index in range(37)]
+    reranked = [
+        Document(
+            page_content=f"relevant-{index}",
+            metadata={"relevance_score": 5.0 - index},
+        )
+        for index in range(5)
+    ]
+    vdb_op = mocker.MagicMock(spec=VDBRag)
+    vdb_op.retrieval_langchain.return_value = candidates
+    reranker = mocker.MagicMock()
+    rerank = mocker.patch(
+        "langchain_core.runnables.RunnableAssign.ainvoke",
+        return_value={"context": reranked},
+    )
+    reflection_llm = mocker.patch(
+        "nvidia_rag.rag_server.reflection.get_llm",
+        side_effect=AssertionError("text reflection must not run for image queries"),
+    )
+
+    docs, is_relevant = await check_context_relevance(
+        vdb_op=vdb_op,
+        retriever_query="What is this? data:image/png;base64,iVBORw0KGgo=",
+        collection_names=["test_collection"],
+        ranker=reranker,
+        reflection_counter=ReflectionCounter(2),
+        top_k=100,
+        enable_reranker=True,
+        collection_filter_mapping={"test_collection": ""},
+        config=mocker.MagicMock(),
+    )
+
+    assert docs == reranked
+    assert len(docs) == 5
+    assert all(document.metadata["relevance_score"] > 0 for document in docs)
+    assert is_relevant is True
+    reflection_llm.assert_not_called()
+    rerank.assert_awaited_once()
+    vdb_op.retrieval_langchain.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_image_reranking_retries_without_data_uri_after_token_limit(mocker):
+    """Oversized image input falls back to text-only reranking, not reflection."""
+    candidates = [Document(page_content=f"candidate-{index}") for index in range(37)]
+    reranked = [
+        Document(
+            page_content=f"relevant-{index}",
+            metadata={"relevance_score": 4.0 - index},
+        )
+        for index in range(3)
+    ]
+    vdb_op = mocker.MagicMock(spec=VDBRag)
+    vdb_op.retrieval_langchain.return_value = candidates
+    rerank = mocker.patch(
+        "langchain_core.runnables.RunnableAssign.ainvoke",
+        side_effect=[
+            requests.exceptions.HTTPError(
+                "422 Client Error: Unprocessable Entity",
+                response=mocker.MagicMock(status_code=422),
+            ),
+            {"context": reranked},
+        ],
+    )
+    reflection_llm = mocker.patch(
+        "nvidia_rag.rag_server.reflection.get_llm",
+        side_effect=AssertionError("text reflection must not run for image queries"),
+    )
+
+    docs, is_relevant = await check_context_relevance(
+        vdb_op=vdb_op,
+        retriever_query="這是什麼？ data:image/jpeg;base64,oversized-image",
+        collection_names=["test_collection"],
+        ranker=mocker.MagicMock(),
+        reflection_counter=ReflectionCounter(2),
+        top_k=100,
+        enable_reranker=True,
+        collection_filter_mapping={"test_collection": ""},
+        config=mocker.MagicMock(),
+    )
+
+    assert docs == reranked
+    assert is_relevant is True
+    reflection_llm.assert_not_called()
+    assert rerank.await_count == 2
+    retry_input = rerank.await_args_list[1].args[0]
+    assert retry_input["question"] == "這是什麼？"
+    assert "data:image/" not in retry_input["question"]
 
 
 @pytest.mark.asyncio

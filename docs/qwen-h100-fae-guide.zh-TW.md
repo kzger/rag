@@ -5,7 +5,7 @@
 本文件適用於本 repository 的實驗性 `qwen-h100-local-rag-tickets` 分支，不適用於 NVIDIA RAG Blueprint 的預設三 GPU 部署。已驗證的基準是：
 
 - 1 張 NVIDIA H100 80GB，GPU ID `0`。
-- Qwen `Qwen/Qwen3.6-27B-FP8`。
+- Qwen `Qwen/Qwen3.8-27B-FP8`。
 - vLLM context window `32768`，GPU memory utilization `0.48`。
 - 所有生成、檢索與 ingestion GPU 服務同時常駐，不採用分時切換。
 - 只有 `127.0.0.1:8090`、`:8081`、`:8082`、`:8999` 對 host 發布。
@@ -225,7 +225,10 @@ scripts/qwen_h100_local_rag.sh config --services
 scripts/start_qwen_h100_local_rag.sh
 ```
 
-啟動 script 會執行 validate、pull、`up -d`，並等待四個 public endpoints。第一次下載 model 與 images 通常需要 15–30 分鐘。
+啟動 script 會執行 validate、pull，先單獨啟動 Qwen 並等待 `/v1/models`
+ready，再執行完整的 `up -d` 並等待其餘三個 public endpoints。這個分階段流程
+可讓 vLLM 首次啟動失敗後依 restart policy 自行恢復，而不會讓相依的 RAG 服務
+永久停在未啟動狀態。第一次下載 model 與 images 通常需要 15–30 分鐘。
 
 已有完整 image/cache 時可跳過 pull：
 
@@ -406,7 +409,7 @@ RAG 與 Ingestor health JSON 中的 database、object storage、NIM、processing
 ```bash
 curl -fsS -X POST http://127.0.0.1:8999/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  --data '{"model":"Qwen/Qwen3.6-27B-FP8","messages":[{"role":"user","content":"請用一句話說明 RAG。"}],"max_tokens":64,"temperature":0}' \
+  --data '{"model":"Qwen/Qwen3.8-27B-FP8","messages":[{"role":"user","content":"請用一句話說明 RAG。"}],"max_tokens":64,"temperature":0}' \
   | jq -r '.choices[0].message.content'
 ```
 

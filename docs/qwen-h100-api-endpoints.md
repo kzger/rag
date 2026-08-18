@@ -68,7 +68,7 @@ Call the shared Qwen endpoint directly:
 ```bash
 curl -fsS -X POST http://127.0.0.1:8999/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  --data '{"model":"Qwen/Qwen3.6-27B-FP8","messages":[{"role":"user","content":"Summarize the role of OCR in RAG."}],"max_tokens":128,"temperature":0}'
+  --data '{"model":"Qwen/Qwen3.8-27B-FP8","messages":[{"role":"user","content":"Summarize the role of OCR in RAG."}],"max_tokens":128,"temperature":0}'
 ```
 
 The RAG server's complete `/v1/generate` payload includes pipeline-specific

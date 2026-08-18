@@ -79,6 +79,75 @@ def test_start_wrapper_rejects_invalid_timeout_before_deployment() -> None:
     assert "QWEN_START_TIMEOUT_SECONDS must be a positive integer" in result.stderr
 
 
+def test_start_wrapper_waits_for_qwen_before_starting_full_stack(
+    tmp_path: Path,
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    docker_log = tmp_path / "docker.log"
+    qwen_ready = tmp_path / "qwen-ready"
+
+    docker = fake_bin / "docker"
+    docker.write_text(
+        """#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_DOCKER_LOG"
+case " $* " in
+  *" config --format json "*) printf '{}\\n' ;;
+  *" up -d qwen-vllm "*) ;;
+  *" up -d "*) test -f "$FAKE_QWEN_READY" ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+
+    uv = fake_bin / "uv"
+    uv.write_text("#!/usr/bin/env bash\ncat >/dev/null\n", encoding="utf-8")
+    uv.chmod(0o755)
+
+    curl = fake_bin / "curl"
+    curl.write_text(
+        """#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_CURL_LOG"
+case "$*" in
+  *127.0.0.1:8999*) touch "$FAKE_QWEN_READY" ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    curl.chmod(0o755)
+
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "FAKE_CURL_LOG": str(tmp_path / "curl.log"),
+            "FAKE_DOCKER_LOG": str(docker_log),
+            "FAKE_QWEN_READY": str(qwen_ready),
+            "NGC_API_KEY": "test-only-not-a-secret",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "QWEN_SKIP_PULL": "1",
+            "QWEN_START_POLL_SECONDS": "1",
+            "QWEN_START_TIMEOUT_SECONDS": "5",
+        }
+    )
+
+    result = subprocess.run(
+        [str(START_SCRIPT)],
+        cwd=REPO_ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    up_calls = [
+        line for line in docker_log.read_text().splitlines() if " up -d" in line
+    ]
+    assert up_calls[0].endswith("up -d qwen-vllm")
+    assert up_calls[1].endswith("up -d")
+
+
 def test_stop_wrapper_rejects_unknown_mode_without_stopping() -> None:
     result = subprocess.run(
         [str(STOP_SCRIPT), "--delete"],
@@ -232,8 +301,13 @@ def test_resolved_config_preserves_custom_retrieval_and_conversation_values() ->
 
 def test_qwen_h100_profile_uses_32k_shared_context_with_bounded_retrieval() -> None:
     config = resolved_compose_config()
+    command = config["services"]["qwen-vllm"]["command"]
 
-    assert "32768" in config["services"]["qwen-vllm"]["command"]
+    assert command[0] == "Qwen/Qwen3.8-27B-FP8"
+    assert command[command.index("--revision") + 1] == (
+        "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a"
+    )
+    assert "32768" in command
     assert config["services"]["rag-server"]["environment"]["APP_RETRIEVER_TOPK"] == "4"
     assert config["services"]["rag-server"]["environment"]["VECTOR_DB_TOPK"] == "100"
 

@@ -194,7 +194,7 @@ the repository root:
 uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
   --endpoint http://127.0.0.1:8081 \
   --collection jorjin_glasses \
-  --model Qwen/Qwen3.6-27B-FP8 \
+  --model Qwen/Qwen3.8-27B-FP8 \
   --vdb-top-k 100 \
   --reranker-top-k 5 \
   --output results/multimodal-accuracy-baseline.json
@@ -223,12 +223,12 @@ candidate minus baseline, so negative latency is faster:
 ```bash
 uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
   --dataset scripts/eval/multimodal_accuracy_cases.json --endpoint http://127.0.0.1:8081 \
-  --collection jorjin_glasses --model Qwen/Qwen3.6-27B-FP8 --vdb-top-k 100 \
+  --collection jorjin_glasses --model Qwen/Qwen3.8-27B-FP8 --vdb-top-k 100 \
   --reranker-top-k 5 --request-vlm-temperature 0.0 --variant baseline \
   --server-settings results/remote-multimodal-settings.json --output results/baseline.json
 uv run --project scripts/eval python scripts/eval/evaluate_multimodal_accuracy.py \
   --dataset scripts/eval/multimodal_accuracy_cases.json --endpoint http://127.0.0.1:8081 \
-  --collection jorjin_glasses --model Qwen/Qwen3.6-27B-FP8 --vdb-top-k 100 \
+  --collection jorjin_glasses --model Qwen/Qwen3.8-27B-FP8 --vdb-top-k 100 \
   --reranker-top-k 5 --request-vlm-temperature 0.1 --variant candidate \
   --server-settings results/remote-multimodal-settings.json --output results/candidate.json
 uv run --project scripts/eval python scripts/eval/compare_multimodal_reports.py \
